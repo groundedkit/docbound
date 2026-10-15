@@ -1,4 +1,9 @@
-# Docbound
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://groundedkit.github.io/brand/docbound-wordmark-dark.png">
+    <img alt="Docbound" src="https://groundedkit.github.io/brand/docbound-wordmark-light.png" height="40">
+  </picture>
+</h1>
 
 **A production-ready RAG starter for Spring Boot.** Upload your documents and ask questions: answers stream in, cite the exact passages they came from, and say "not found" instead of guessing. Everything runs on your machine with [Ollama](https://ollama.com), so no API keys are needed and documents never leave it.
 

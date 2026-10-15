@@ -100,6 +100,9 @@ export function DocumentPanel({ onCountChange, onError }: Props) {
 
   return (
     <section className="documents" aria-label="Documents">
+      <p className="wordmark" aria-label="Docbound">
+        docbound<sup aria-hidden="true">1</sup>
+      </p>
       <h2>Documents</h2>
 
       <div

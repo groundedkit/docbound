@@ -3,13 +3,15 @@
   --surface: #ffffff;
   --surface-muted: #f0f0ed;
   --border: #e2e2dd;
-  --text: #1c1c1a;
-  --text-muted: #6b6b66;
-  --accent: #2f5bd3;
-  --accent-soft: #e6ecfb;
+  --text: #17171b;
+  --text-muted: #66665f;
+  /* groundedkit brand: ink and amber. --mark is the amber of the superscript in the wordmark. */
+  --accent: #17171b;
+  --accent-soft: #fdf0d9;
   --accent-text: #ffffff;
+  --mark: #f5a524;
   --danger: #b42318;
-  --user-bubble: #2f5bd3;
+  --user-bubble: #17171b;
   --user-text: #ffffff;
   --radius: 10px;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.06);
@@ -30,11 +32,11 @@
     --border: #33332f;
     --text: #ececea;
     --text-muted: #9d9d97;
-    --accent: #7a9cf0;
-    --accent-soft: #24304d;
-    --accent-text: #0f1420;
+    --accent: #f5a524;
+    --accent-soft: #3a2b12;
+    --accent-text: #17171b;
     --danger: #f97066;
-    --user-bubble: #34477a;
+    --user-bubble: #2c2c31;
     --user-text: #ececea;
     --shadow: none;
   }
@@ -570,4 +572,19 @@ button:disabled {
   *::after {
     animation: none !important;
   }
+}
+
+.wordmark {
+  margin: 0 0 14px;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.wordmark sup {
+  color: var(--mark);
+  font-size: 0.5em;
+  margin-left: 0.06em;
+  letter-spacing: 0;
 }
