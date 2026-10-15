@@ -47,17 +47,19 @@ spring:
 
 app:
   ingestion:
-    # Chosen by measuring retrieval accuracy on a test corpus (see README, "Retrieval eval").
+    # Chosen by measuring retrieval accuracy on a test corpus (see README, "Retrieval quality").
     chunk-size: 400
     chunk-overlap: 100
     paragraph-break-tokens: 60
     allowed-extensions: pdf, md, markdown, txt, docx, html
   chat:
     top-k: 5
-    # Chunks below this similarity are ignored; with none left, chat answers "not found" without calling the LLM.
+    # Chunks below this similarity aren't used as sources. With none left, the model still replies: briefly to
+    # greetings, otherwise "I couldn't find that in <document titles>".
     # Chosen with RetrievalEval#relevanceScores: the highest value that keeps every answerable eval question.
-    # Off-topic questions above it still reach the LLM, which is told to reply "not found".
     similarity-threshold: 0.45
+    # Earlier question-and-answer exchanges used to understand follow-up questions.
+    history-turns: 3
 
 management:
   endpoints:

@@ -113,7 +113,7 @@ class ApiIntegrationTest {
 			.contains("event:token\ndata:{\"text\":\"You get 27 days\"}")
 			.contains("event:done\ndata:{\"citedSources\":[1]");
 		assertThat(chatModel.lastPrompt().getInstructions().getLast().getText())
-			.contains("[1] (from handbook.md)")
+			.contains("<source id=\"1\" document=\"Handbook\">")
 			.contains("27 days of paid vacation");
 	}
 

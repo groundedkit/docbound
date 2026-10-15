@@ -1,14 +1,14 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { NOT_FOUND, type Citation } from '../api'
+import type { Citation } from '../api'
 import type { AssistantTurn } from '../useChat'
 import { AssistantMessage } from './AssistantMessage'
 
 afterEach(cleanup)
 
 const sources: Citation[] = [
-  { index: 1, documentId: 'd1', filename: 'handbook.md', chunkIndex: 4, score: 0.71, text: '27 days of paid vacation' },
-  { index: 2, documentId: 'd2', filename: 'api.md', chunkIndex: 0, score: 0.6, text: 'Rate limits' },
+  { index: 1, documentId: 'd1', filename: 'employee_handbook.md', title: 'Employee Handbook', chunkIndex: 4, score: 0.71, text: '27 days of paid vacation' },
+  { index: 2, documentId: 'd2', filename: 'payments_api.md', title: 'Payments Api', chunkIndex: 0, score: 0.6, text: 'Rate limits' },
 ]
 
 function turn(overrides: Partial<AssistantTurn>): AssistantTurn {
@@ -26,12 +26,12 @@ describe('AssistantMessage', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Source 1: handbook.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Source 1: Employee Handbook' }))
 
     expect(onOpenSource).toHaveBeenCalledWith(sources[0])
   })
 
-  it('lists only the sources the finished answer cites', () => {
+  it('lists only the sources the finished answer cites, by title', () => {
     render(
       <AssistantMessage
         turn={turn({ text: 'Rate limits apply [2].', status: 'done', cited: [2] })}
@@ -41,21 +41,54 @@ describe('AssistantMessage', () => {
     )
 
     const chips = screen.getByRole('list', { name: 'Sources' })
-    expect(chips.textContent).toContain('api.md')
-    expect(chips.textContent).not.toContain('handbook.md')
+    expect(chips.textContent).toContain('Payments Api')
+    expect(chips.textContent).not.toContain('Employee Handbook')
   })
 
-  it('shows a "not found" reply without citation links', () => {
-    render(
+  it('shows a "not found" reply muted and without citation links', () => {
+    const { container } = render(
       <AssistantMessage
-        turn={turn({ text: `${NOT_FOUND} [1]`, status: 'done', cited: [] })}
+        turn={turn({ text: "I couldn't find that in the Employee Handbook document. [1]", status: 'done', cited: [], notFound: true })}
         selected={null}
         onOpenSource={() => {}}
       />,
     )
 
-    expect(screen.getByText(NOT_FOUND)).toBeTruthy()
+    expect(screen.getByText("I couldn't find that in the Employee Handbook document.")).toBeTruthy()
     expect(screen.queryByRole('button')).toBeNull()
+    expect(container.querySelector('.message.not-found')).not.toBeNull()
+  })
+
+  it('shows a conversational reply normally', () => {
+    const { container } = render(
+      <AssistantMessage
+        turn={turn({ text: 'Hi! Ask me about the Employee Handbook.', status: 'done', cited: [], notFound: false })}
+        selected={null}
+        onOpenSource={() => {}}
+      />,
+    )
+
+    expect(container.querySelector('.message.not-found')).toBeNull()
+  })
+
+  it('renders bullet lists and bold text, with citations inside list items', () => {
+    const { container } = render(
+      <AssistantMessage
+        turn={turn({
+          text: 'The handbook covers:\n- **Vacation:** 27 days [1]\n- Rate limits [2]',
+          status: 'done',
+          cited: [1, 2],
+        })}
+        selected={null}
+        onOpenSource={() => {}}
+      />,
+    )
+
+    const items = container.querySelectorAll('.message-body ul > li')
+    expect(items).toHaveLength(2)
+    expect(items[0].querySelector('strong')?.textContent).toBe('Vacation:')
+    expect(items[0].querySelector('button.cite')?.textContent).toBe('1')
+    expect(container.querySelector('.message-body p')?.textContent).toBe('The handbook covers:')
   })
 
   it('shows progress before the first token arrives', () => {

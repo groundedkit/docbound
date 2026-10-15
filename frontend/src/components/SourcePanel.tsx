@@ -19,9 +19,9 @@ export function SourcePanel({ citation, onClose }: Props) {
       <header className="source-header">
         <div>
           <p className="source-label">Source {citation.index}</p>
-          <h2>{citation.filename}</h2>
+          <h2>{citation.title}</h2>
           <p className="source-meta">
-            Part {citation.chunkIndex + 1} · {Math.round(citation.score * 100)}% match
+            {citation.filename} · part {citation.chunkIndex + 1} · {Math.round(citation.score * 100)}% match
           </p>
         </div>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close source">

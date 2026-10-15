@@ -1,5 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
-import { streamChat, type Citation } from './api'
+import { streamChat, type Citation, type HistoryTurn } from './api'
+
+/** How many earlier exchanges to send; the server decides how many it actually uses (app.chat.history-turns). */
+const MAX_HISTORY = 10
 
 export interface UserTurn {
   id: number
@@ -16,6 +19,8 @@ export interface AssistantTurn {
   /** Source indexes the finished answer cites; null while still streaming. */
   cited: number[] | null
   status: 'streaming' | 'done' | 'error' | 'stopped'
+  /** The answer says the documents don't contain what was asked. */
+  notFound?: boolean
   error?: string
   durationMs?: number
 }
@@ -38,6 +43,7 @@ export function useChat() {
     async (question: string) => {
       const text = question.trim()
       if (!text || controller.current) return
+      const history = completedExchanges(turns).slice(-MAX_HISTORY)
       const id = nextId++
       setTurns((all) => [
         ...all,
@@ -48,7 +54,7 @@ export function useChat() {
       controller.current = abort
       setStreaming(true)
       try {
-        for await (const event of streamChat(text, abort.signal)) {
+        for await (const event of streamChat(text, history, abort.signal)) {
           switch (event.type) {
             case 'sources':
               update(id, (turn) => ({ ...turn, sources: event.sources }))
@@ -57,7 +63,13 @@ export function useChat() {
               update(id, (turn) => ({ ...turn, text: turn.text + event.text }))
               break
             case 'done':
-              update(id, (turn) => ({ ...turn, status: 'done', cited: event.citedSources, durationMs: event.durationMs }))
+              update(id, (turn) => ({
+                ...turn,
+                status: 'done',
+                cited: event.citedSources,
+                notFound: event.notFound,
+                durationMs: event.durationMs,
+              }))
               break
             case 'error':
               update(id, (turn) => ({ ...turn, status: 'error', error: event.message }))
@@ -81,7 +93,7 @@ export function useChat() {
         setStreaming(false)
       }
     },
-    [update],
+    [turns, update],
   )
 
   const stop = useCallback(() => controller.current?.abort(), [])
@@ -91,4 +103,17 @@ export function useChat() {
   }, [])
 
   return { turns, streaming, ask, stop, clear }
+}
+
+/** Question-and-answer pairs whose answer finished normally; stopped or failed answers aren't useful context. */
+export function completedExchanges(turns: Turn[]): HistoryTurn[] {
+  const exchanges: HistoryTurn[] = []
+  for (let i = 1; i < turns.length; i++) {
+    const question = turns[i - 1]
+    const answer = turns[i]
+    if (question.role === 'user' && answer.role === 'assistant' && answer.status === 'done') {
+      exchanges.push({ question: question.text, answer: answer.text })
+    }
+  }
+  return exchanges
 }

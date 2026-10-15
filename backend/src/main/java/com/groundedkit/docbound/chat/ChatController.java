@@ -1,9 +1,12 @@
 package com.groundedkit.docbound.chat;
 
+import java.util.List;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import reactor.core.publisher.Flux;
 
@@ -29,11 +32,20 @@ class ChatController {
 	@PostMapping(path = "/api/chat", consumes = MediaType.APPLICATION_JSON_VALUE,
 			produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	Flux<ServerSentEvent<ChatEvent>> chat(@Valid @RequestBody ChatRequest request) {
-		return chat.answer(request.question(), request.topK())
+		List<ChatService.Turn> history = request.history() == null ? List.of()
+				: request.history().stream().map(turn -> new ChatService.Turn(turn.question(), turn.answer())).toList();
+		return chat.answer(request.question(), history, request.topK())
 			.map(event -> ServerSentEvent.builder(event).event(event.name()).build());
 	}
 
-	record ChatRequest(@NotBlank @Size(max = 2000) String question, @Min(1) @Max(10) Integer topK) {
+	/**
+	 * @param history earlier exchanges, oldest first. Only the most recent {@code app.chat.history-turns} are used.
+	 */
+	record ChatRequest(@NotBlank @Size(max = 2000) String question, @Min(1) @Max(10) Integer topK,
+			@Valid @Size(max = 20) List<HistoryTurn> history) {
+	}
+
+	record HistoryTurn(@NotBlank @Size(max = 2000) String question, @NotNull @Size(max = 10_000) String answer) {
 	}
 
 }

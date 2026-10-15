@@ -1,5 +1,7 @@
-import { NOT_FOUND, type Citation } from '../api'
+import type { ReactNode } from 'react'
+import type { Citation } from '../api'
 import { splitCitations, stripCitations } from '../citations'
+import { parseBlocks, splitBold } from '../format'
 import type { AssistantTurn } from '../useChat'
 
 interface Props {
@@ -9,11 +11,35 @@ interface Props {
 }
 
 export function AssistantMessage({ turn, selected, onOpenSource }: Props) {
-  const notFound = turn.status === 'done' && turn.cited?.length === 0 && turn.text.trim().startsWith(NOT_FOUND)
+  const notFound = turn.status === 'done' && turn.notFound === true
   // While streaming, any retrieved source can be cited; once done, only the ones the answer really used.
   const valid = new Set(turn.cited ?? turn.sources.map((source) => source.index))
   const byIndex = new Map(turn.sources.map((source) => [source.index, source]))
   const citedSources = (turn.cited ?? []).flatMap((index) => byIndex.get(index) ?? [])
+  const text = notFound ? stripCitations(turn.text) : turn.text
+
+  /** One line of an answer: bold spans plus clickable [n] citations. */
+  function inline(line: string): ReactNode[] {
+    return splitBold(line).flatMap((part, p) =>
+      splitCitations(part.text, notFound ? new Set<number>() : valid).map((piece, i) => {
+        const key = `${p}-${i}`
+        if (piece.kind === 'text') return part.bold ? <strong key={key}>{piece.text}</strong> : <span key={key}>{piece.text}</span>
+        const source = byIndex.get(piece.index)!
+        return (
+          <button
+            key={key}
+            type="button"
+            className={`cite${selected === source ? ' active' : ''}`}
+            onClick={() => onOpenSource(source)}
+            aria-label={`Source ${piece.index}: ${source.title}`}
+            title={`${source.title} (${source.filename})`}
+          >
+            {piece.index}
+          </button>
+        )
+      }),
+    )
+  }
 
   return (
     <div className={`message assistant${notFound ? ' not-found' : ''}`}>
@@ -21,24 +47,22 @@ export function AssistantMessage({ turn, selected, onOpenSource }: Props) {
         {turn.text === '' && turn.status === 'streaming' && (
           <span className="thinking">{turn.sources.length ? 'Writing an answer' : 'Searching your documents'}</span>
         )}
-        {notFound
-          ? stripCitations(turn.text)
-          : splitCitations(turn.text, valid).map((part, i) => {
-              if (part.kind === 'text') return <span key={i}>{part.text}</span>
-              const source = byIndex.get(part.index)!
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  className={`cite${selected === source ? ' active' : ''}`}
-                  onClick={() => onOpenSource(source)}
-                  aria-label={`Source ${part.index}: ${source.filename}`}
-                  title={source.filename}
-                >
-                  {part.index}
-                </button>
-              )
-            })}
+        {parseBlocks(text).map((block, b) => {
+          if (block.kind === 'paragraph') {
+            return (
+              <p key={b}>
+                {block.lines.map((line, l) => (
+                  <span key={l}>
+                    {l > 0 && <br />}
+                    {inline(line)}
+                  </span>
+                ))}
+              </p>
+            )
+          }
+          const items = block.items.map((item, i) => <li key={i}>{inline(item)}</li>)
+          return block.kind === 'bullets' ? <ul key={b}>{items}</ul> : <ol key={b}>{items}</ol>
+        })}
         {turn.status === 'streaming' && turn.text !== '' && <span className="cursor" aria-hidden="true" />}
       </div>
 
@@ -50,9 +74,10 @@ export function AssistantMessage({ turn, selected, onOpenSource }: Props) {
                 type="button"
                 className={`source-chip${selected === source ? ' active' : ''}`}
                 onClick={() => onOpenSource(source)}
+                title={source.filename}
               >
                 <span className="chip-index">{source.index}</span>
-                <span className="chip-name">{source.filename}</span>
+                <span className="chip-name">{source.title}</span>
                 <span className="chip-part">part {source.chunkIndex + 1}</span>
               </button>
             </li>

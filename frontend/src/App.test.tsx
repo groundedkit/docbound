@@ -12,10 +12,10 @@ function fakeBackend() {
     }
     if (url === '/api/chat') {
       const events = [
-        'event:sources\ndata:{"sources":[{"index":1,"documentId":"d1","filename":"handbook.md","chunkIndex":4,"score":0.71,"text":"Full-time employees receive 27 days of paid vacation."}]}\n\n',
+        'event:sources\ndata:{"sources":[{"index":1,"documentId":"d1","filename":"handbook.md","title":"Handbook","chunkIndex":4,"score":0.71,"text":"Full-time employees receive 27 days of paid vacation."}]}\n\n',
         'event:token\ndata:{"text":"You get 27 days"}\n\n',
         'event:token\ndata:{"text":" [1]."}\n\n',
-        'event:done\ndata:{"citedSources":[1],"promptTokens":700,"completionTokens":9,"durationMs":1500}\n\n',
+        'event:done\ndata:{"citedSources":[1],"notFound":false,"promptTokens":700,"completionTokens":9,"durationMs":1500}\n\n',
       ]
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
@@ -50,11 +50,12 @@ describe('App', () => {
     expect(await screen.findByText(/You get 27 days/)).toBeTruthy()
     await waitFor(() => expect(screen.getByText('1.5 s')).toBeTruthy())
 
-    fireEvent.click(screen.getByRole('button', { name: 'Source 1: handbook.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Source 1: Handbook' }))
 
     const panel = screen.getByRole('complementary', { name: 'Source' })
     expect(panel.textContent).toContain('Full-time employees receive 27 days of paid vacation.')
-    expect(panel.textContent).toContain('Part 5 · 71% match')
+    expect(panel.textContent).toContain('Handbook')
+    expect(panel.textContent).toContain('handbook.md · part 5 · 71% match')
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('complementary', { name: 'Source' })).toBeNull()
@@ -86,6 +87,26 @@ describe('App', () => {
     }
   })
 
+  it('sends earlier exchanges with a follow-up question', async () => {
+    render(<App />)
+    const question = screen.getByLabelText('Question')
+
+    fireEvent.change(question, { target: { value: 'How many vacation days?' } })
+    fireEvent.keyDown(question, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByText('1.5 s')).toBeTruthy())
+
+    fireEvent.change(question, { target: { value: 'Are you sure?' } })
+    fireEvent.keyDown(question, { key: 'Enter' })
+    await waitFor(() => expect(screen.getAllByText('1.5 s')).toHaveLength(2))
+
+    const chatCalls = vi.mocked(fetch).mock.calls.filter(([url]) => url === '/api/chat')
+    expect(JSON.parse(chatCalls[0][1]!.body as string).history).toEqual([])
+    expect(JSON.parse(chatCalls[1][1]!.body as string)).toEqual({
+      question: 'Are you sure?',
+      history: [{ question: 'How many vacation days?', answer: 'You get 27 days [1].' }],
+    })
+  })
+
   it('sends the question as JSON to the chat endpoint', async () => {
     render(<App />)
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: '  Vacation?  ' } })
@@ -93,6 +114,6 @@ describe('App', () => {
 
     await screen.findByText(/You get 27 days/)
     const chatCall = vi.mocked(fetch).mock.calls.find(([url]) => url === '/api/chat')!
-    expect(JSON.parse(chatCall[1]!.body as string)).toEqual({ question: 'Vacation?' })
+    expect(JSON.parse(chatCall[1]!.body as string)).toEqual({ question: 'Vacation?', history: [] })
   })
 })

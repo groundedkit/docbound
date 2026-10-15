@@ -13,6 +13,8 @@ export interface Citation {
   index: number
   documentId: string
   filename: string
+  /** Readable name derived from the filename, e.g. "Policy Workplace Concerns". */
+  title: string
   chunkIndex: number
   score: number
   text: string
@@ -25,14 +27,19 @@ export type ChatEvent =
   | {
       type: 'done'
       citedSources: number[]
+      /** True when the answer says the documents don't contain what was asked. */
+      notFound: boolean
       promptTokens: number | null
       completionTokens: number | null
       durationMs: number
     }
   | { type: 'error'; message: string }
 
-/** Must match ChatService.NOT_FOUND on the backend. */
-export const NOT_FOUND = "I couldn't find that in your documents."
+/** An earlier exchange, sent with each question so follow-ups can be understood. */
+export interface HistoryTurn {
+  question: string
+  answer: string
+}
 
 /** Shown when the backend can't be reached at all, e.g. it's still starting or Ollama isn't running. */
 export const BACKEND_UNAVAILABLE =
@@ -63,11 +70,15 @@ export async function deleteDocument(id: string): Promise<void> {
   if (!response.ok) throw await toError(response)
 }
 
-export async function* streamChat(question: string, signal?: AbortSignal): AsyncGenerator<ChatEvent> {
+export async function* streamChat(
+  question: string,
+  history: HistoryTurn[] = [],
+  signal?: AbortSignal,
+): AsyncGenerator<ChatEvent> {
   const response = await request('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, history }),
     signal,
   })
   if (!response.ok || !response.body) throw await toError(response)

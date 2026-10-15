@@ -2,7 +2,6 @@ package com.groundedkit.docbound;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import reactor.core.publisher.Flux;
 
@@ -16,7 +15,8 @@ import org.springframework.ai.chat.prompt.Prompt;
 
 /**
  * Streams a scripted answer token by token and records the prompts it receives. The last streamed response
- * carries token usage, like real providers do.
+ * carries token usage, like real providers do. Non-streaming calls (used to rewrite follow-up questions) return a
+ * separately scripted reply.
  */
 public class FakeChatModel implements ChatModel {
 
@@ -24,9 +24,13 @@ public class FakeChatModel implements ChatModel {
 
 	private volatile RuntimeException failAfterTokens;
 
-	private final List<Prompt> prompts = new ArrayList<>();
+	private volatile String callReply = null;
 
-	private final AtomicInteger calls = new AtomicInteger();
+	private volatile RuntimeException callFailure;
+
+	private final List<Prompt> streamPrompts = new ArrayList<>();
+
+	private final List<Prompt> callPrompts = new ArrayList<>();
 
 	public FakeChatModel respondWith(String... tokens) {
 		this.tokens = List.of(tokens);
@@ -40,23 +44,47 @@ public class FakeChatModel implements ChatModel {
 		return this;
 	}
 
+	/** The reply to a non-streaming call, e.g. the rewritten follow-up question. */
+	public FakeChatModel callReturns(String reply) {
+		this.callReply = reply;
+		this.callFailure = null;
+		return this;
+	}
+
+	public FakeChatModel callFails(RuntimeException error) {
+		this.callFailure = error;
+		return this;
+	}
+
+	public int streamCalls() {
+		return streamPrompts.size();
+	}
+
 	public int calls() {
-		return calls.get();
+		return callPrompts.size();
 	}
 
 	public Prompt lastPrompt() {
-		return prompts.getLast();
+		return streamPrompts.getLast();
+	}
+
+	public Prompt lastCallPrompt() {
+		return callPrompts.getLast();
 	}
 
 	@Override
 	public ChatResponse call(Prompt prompt) {
-		throw new UnsupportedOperationException("The app only uses streaming");
+		callPrompts.add(prompt);
+		if (callFailure != null) {
+			throw callFailure;
+		}
+		String reply = callReply != null ? callReply : prompt.getInstructions().getLast().getText();
+		return new ChatResponse(List.of(new Generation(new AssistantMessage(reply))));
 	}
 
 	@Override
 	public Flux<ChatResponse> stream(Prompt prompt) {
-		calls.incrementAndGet();
-		prompts.add(prompt);
+		streamPrompts.add(prompt);
 		List<ChatResponse> responses = new ArrayList<>();
 		tokens.forEach(token -> responses.add(new ChatResponse(List.of(new Generation(new AssistantMessage(token))))));
 		Flux<ChatResponse> stream = Flux.fromIterable(responses);

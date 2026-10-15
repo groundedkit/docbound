@@ -35,11 +35,12 @@ public sealed interface ChatEvent {
 	 * The answer is complete.
 	 *
 	 * @param citedSources source indexes the answer actually cites, in order of first use
+	 * @param notFound true when the answer says the documents don't contain what was asked
 	 * @param promptTokens tokens sent to the model, if the provider reports it
 	 * @param completionTokens tokens generated, if the provider reports it
 	 */
-	record Done(List<Integer> citedSources, Integer promptTokens, Integer completionTokens, long durationMs)
-			implements ChatEvent {
+	record Done(List<Integer> citedSources, boolean notFound, Integer promptTokens, Integer completionTokens,
+			long durationMs) implements ChatEvent {
 
 		@Override
 		public String name() {
@@ -58,7 +59,9 @@ public sealed interface ChatEvent {
 
 	}
 
-	record Citation(int index, UUID documentId, String filename, int chunkIndex, double score, String text) {
+	/** A source passage. {@code title} is a readable name derived from the filename. */
+	record Citation(int index, UUID documentId, String filename, String title, int chunkIndex, double score,
+			String text) {
 	}
 
 }

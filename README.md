@@ -7,7 +7,8 @@
 
 ![Docbound demo: uploading a handbook, asking a question, opening the cited passage, and an off-topic question answered with "not found"](docs/demo.gif)
 
-- **Cited, grounded answers:** every claim links to its source passage; off-topic questions get "not found" instead of a made-up answer.
+- **Cited, grounded answers:** every claim links to its source passage, and documents are named by title; questions the documents don't cover get "not found" instead of a made-up answer.
+- **A real conversation:** follow-up questions understand the last few exchanges, and greetings get a friendly reply instead of an error.
 - **Measured retrieval:** structure-aware chunking, tuned with an included evaluation harness ([results](#retrieval-quality)).
 - **A complete app:** Spring Boot 4.1 + Spring AI 2.0 backend, React UI, PostgreSQL + pgvector, tests, and a one-command Docker setup.
 
@@ -160,7 +161,7 @@ The models are downloaded into the container on first start. Skip step 2 and 3 i
 ## Using Docbound
 
 - **Documents** (left): upload PDF, Word (DOCX), Markdown, text or HTML files, up to 20 MB each, with the button or by dragging them in. Each file shows how many parts it was split into. A failed upload shows the reason, such as an unsupported file type. Delete a document with ×.
-- **Chat**: answers stream in as they're generated. Citations like **1** are buttons, and each finished answer lists the sources it actually used. A "not found" answer is shown muted, without citations. **Stop** cancels an answer.
+- **Chat**: answers stream in as they're generated, with bullet lists for broad questions. Citations like **1** are buttons, and each finished answer lists the documents and parts it actually used. Follow-ups such as "tell me more about the second one" or "are you sure?" use the last 3 exchanges. A "not found" answer is shown muted, without citations. **New chat** starts a fresh conversation; **Stop** cancels an answer.
 - **Source panel** (right side, or a bottom sheet on phones): click a citation to see the exact passage, its file, part number and match score. `Esc` closes it.
 
 Scanned PDFs (images of text) can't be read; run them through OCR first.
@@ -201,12 +202,15 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    Q["Question"] --> R["Find the 5 closest<br/>chunks in pgvector"]
-    R -- "none close enough" --> NF["'Not found'<br/>(no LLM call)"]
-    R -- "found" --> L["llama3.2 answers from<br/>numbered sources"] --> A["Streamed answer<br/>citing [1], [2]"]
+    Q["Question"] --> F{"Follow-up?"}
+    F -- "yes" --> W["Rewrite as a<br/>standalone question"] --> R
+    F -- "no" --> R["Find the 5 closest<br/>chunks in pgvector"]
+    R --> L["llama3.2 answers from<br/>titled, numbered sources"] --> A["Streamed answer<br/>citing [1], [2]"]
 ```
 
-The model is told to answer only from the numbered sources, cite them as `[1]`, `[2]`, and reply exactly `I couldn't find that in your documents.` when they don't contain the answer. If no chunk is similar enough to the question, that reply is returned immediately without calling the LLM.
+1. **Small talk** ("hi", "thanks", "bye") gets an instant, fixed reply that names your documents, without calling the model.
+2. **Follow-ups:** with earlier exchanges in the conversation, the model first rewrites the new message as a standalone question (e.g. "are you sure it's the most important one?" → "Is the obligation to report concerns the most important part of the Policy Workplace Concerns document?"), so search finds the right passages. The last 3 exchanges are also given to the model.
+3. **Answering:** the model gets the passages tagged with their document title and is told to answer only from them, cite each statement as `[1]`, `[2]`, and refer to documents by title. If the passages are related but don't answer exactly, it says what the documents do say. If nothing relevant was found, it replies "I couldn't find that in" followed by the document titles, and never answers from outside knowledge.
 
 ## API
 
@@ -234,13 +238,22 @@ Errors are returned as [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) proble
 
 ### Chat stream
 
-`POST /api/chat` takes `{"question": "...", "topK": 5}` (`topK` is optional, 1–10) and streams these events, each with JSON data:
+`POST /api/chat` takes a question, plus optionally `topK` (1–10) and the earlier exchanges, oldest first (up to 20; the server uses the last `app.chat.history-turns`):
+
+```json
+{
+  "question": "Are you sure?",
+  "history": [{ "question": "What is the policy about?", "answer": "It covers conduct [1]." }]
+}
+```
+
+It streams these events, each with JSON data:
 
 | Event | Data | Notes |
 |---|---|---|
-| `sources` | `{"sources": [{"index", "documentId", "filename", "chunkIndex", "score", "text"}]}` | Sent first. The model cites these as `[index]`. |
+| `sources` | `{"sources": [{"index", "documentId", "filename", "title", "chunkIndex", "score", "text"}]}` | Sent first. The model cites these as `[index]`. `title` is a readable name derived from the filename. |
 | `token` | `{"text": "..."}` | Answer text, piece by piece. |
-| `done` | `{"citedSources": [1, 3], "promptTokens", "completionTokens", "durationMs"}` | `citedSources` lists the sources the answer actually used; show only these as citations. |
+| `done` | `{"citedSources": [1, 3], "notFound": false, "promptTokens", "completionTokens", "durationMs"}` | `citedSources` lists the sources the answer actually used; show only these as citations. `notFound` is true when the answer is a plain "not found". |
 | `error` | `{"message": "..."}` | Generation failed part-way. |
 
 ```
@@ -254,7 +267,7 @@ event:token
 data:{"text":" [1]."}
 
 event:done
-data:{"citedSources":[1],"promptTokens":753,"completionTokens":32,"durationMs":1890}
+data:{"citedSources":[1],"notFound":false,"promptTokens":753,"completionTokens":32,"durationMs":1890}
 ```
 
 ## Configuration
@@ -266,7 +279,8 @@ Settings live in [`backend/src/main/resources/application.yml`](backend/src/main
 | `spring.ai.ollama.chat.model` | `llama3.2` | Model that writes the answers. Any Ollama chat model works. |
 | `spring.ai.ollama.embedding.model` | `nomic-embed-text` | Model that turns text into vectors. See the note below before changing it. |
 | `app.chat.top-k` | `5` | How many chunks the model gets as sources |
-| `app.chat.similarity-threshold` | `0.45` | Below this similarity, a chunk is ignored; with none left, the reply is "not found" without calling the LLM |
+| `app.chat.similarity-threshold` | `0.45` | Below this similarity, a chunk isn't used as a source |
+| `app.chat.history-turns` | `3` | How many earlier exchanges are used to understand follow-up questions (0 turns follow-ups off) |
 | `app.ingestion.chunk-size` | `400` | Maximum chunk size in tokens |
 | `app.ingestion.chunk-overlap` | `100` | Tokens repeated when a passage continues in the next chunk |
 | `app.ingestion.paragraph-break-tokens` | `60` | Once a chunk holds this many tokens, it ends at the next paragraph |
@@ -351,7 +365,7 @@ Add your own documents and questions to tune chunking for your data. These resul
 
 MRR (mean reciprocal rank) scores how high the right chunk ranks, from 0 to 1. With paragraph breaks on, the chunk size (300, 400 or 600) made no difference on this corpus, because almost every paragraph is shorter than the limit.
 
-`RetrievalEval#relevanceScores` compares similarity scores for answerable questions and for the off-topic questions in `offtopic.txt`; it's how the threshold of 0.45 was chosen. 0.45 is the highest value that keeps all 55 answerable questions (the vaguest, "What would they do differently next time?", scores 0.475). It rejects 3 of the 16 off-topic questions without calling the LLM. The rest score as high as real answers (e.g. "What is the company's dress code?" at 0.64) and are left to the model's "not found" rule, which declined all of them in testing.
+`RetrievalEval#relevanceScores` compares similarity scores for answerable questions and for the off-topic questions in `offtopic.txt`; it's how the threshold of 0.45 was chosen. 0.45 is the highest value that keeps all 55 answerable questions (the vaguest, "What would they do differently next time?", scores 0.475). Off-topic questions often score as high as real answers (e.g. "What is the company's dress code?" at 0.64), so they're handled by the model's "not found" rule rather than by the threshold.
 
 `nomic-embed-text`'s `search_query:`/`search_document:` prefixes were also tested and didn't improve results, so they aren't used.
 
