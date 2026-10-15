@@ -5,9 +5,44 @@
 [![CI](https://github.com/groundedkit/docbound/actions/workflows/ci.yml/badge.svg)](https://github.com/groundedkit/docbound/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
+![Docbound demo: uploading a handbook, asking a question, opening the cited passage, and an off-topic question answered with "not found"](docs/demo.gif)
+
 - **Cited, grounded answers:** every claim links to its source passage; off-topic questions get "not found" instead of a made-up answer.
 - **Measured retrieval:** structure-aware chunking, tuned with an included evaluation harness (results below).
 - **A complete app:** Spring Boot 4.1 + Spring AI 2.0 backend, React UI, PostgreSQL + pgvector, tests, and one-command Docker setup.
+
+## How it works
+
+```mermaid
+flowchart LR
+    UI["React UI<br/>documents · chat · sources"]
+    subgraph compose["Docker Compose"]
+        NGINX["nginx<br/>serves the UI, proxies /api"]
+        API["Spring Boot backend<br/>Spring AI 2.0"]
+        PG[("PostgreSQL + pgvector")]
+    end
+    OLLAMA["Ollama on your machine<br/>llama3.2 · nomic-embed-text"]
+
+    UI -- "upload · ask (streamed)" --> NGINX --> API
+    API -- "store chunks · similarity search" --> PG
+    API -- "embeddings · answers" --> OLLAMA
+```
+
+**Uploading a document**
+
+```mermaid
+flowchart LR
+    F["File"] --> T["Extract text<br/>(Apache Tika)"] --> S["Split by headings,<br/>paragraphs, sentences"] --> E["Embed chunks"] --> V[("pgvector")]
+```
+
+**Asking a question**
+
+```mermaid
+flowchart LR
+    Q["Question"] --> R["Find the 5 closest<br/>chunks in pgvector"]
+    R -- "none close enough" --> NF["'Not found'<br/>(no LLM call)"]
+    R -- "found" --> L["llama3.2 answers from<br/>numbered sources"] --> A["Streamed answer<br/>citing [1], [2]"]
+```
 
 ## Stack
 
