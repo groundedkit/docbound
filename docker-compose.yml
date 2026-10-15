@@ -1,0 +1,52 @@
+# Full stack:            docker compose up --build    → UI on http://localhost:3000
+# Infra only (run the backend from your IDE):
+#                        docker compose up postgres
+#
+# Ollama runs on your machine, not in Docker: Docker on macOS can't use the GPU, so native Ollama is
+# many times faster. Install it from https://ollama.com and keep it running.
+# No native Ollama (e.g. a Linux server)? Run it in Docker too:
+#                        docker compose -f docker-compose.yml -f docker-compose.ollama.yml up --build
+name: docbound
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_DB: docbound
+      POSTGRES_USER: docbound
+      POSTGRES_PASSWORD: docbound
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docbound -d docbound"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    # If Ollama isn't running yet, the backend exits with an explanation in its logs; retrying means it comes
+    # up on its own once Ollama is started.
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/docbound
+      SPRING_AI_OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # needed on Linux; Docker Desktop provides it already
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

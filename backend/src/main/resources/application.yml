@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: docbound
+
+  # Defaults match docker-compose.yml. Override with SPRING_DATASOURCE_* env vars in other environments.
+  datasource:
+    url: jdbc:postgresql://localhost:5432/docbound
+    username: docbound
+    password: docbound
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+  threads:
+    virtual:
+      enabled: true
+
+  mvc:
+    async:
+      # Chat answers stream for as long as the model generates; on CPU-only machines that can exceed the default.
+      request-timeout: 3m
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      embedding:
+        model: nomic-embed-text
+      chat:
+        model: llama3.2
+        temperature: 0.2   # low: answers should stick to the sources
+        num-ctx: 8192      # room for the system prompt, top-k sources and the answer
+      init:
+        # Downloads missing models on first start (~275 MB embeddings + ~2 GB llama3.2), so the first boot is slow.
+        pull-model-strategy: when_missing
+        timeout: 15m
+
+    vectorstore:
+      pgvector:
+        # Flyway owns the schema (db/migration/V1__init.sql). If you change the embedding
+        # model, update `dimensions` here AND the vector(...) column size in a new migration.
+        initialize-schema: false
+        dimensions: 768
+        index-type: hnsw
+        distance-type: cosine-distance
+
+app:
+  ingestion:
+    # Chosen by measuring retrieval accuracy on a test corpus (see README, "Retrieval eval").
+    chunk-size: 400
+    chunk-overlap: 100
+    paragraph-break-tokens: 60
+    allowed-extensions: pdf, md, markdown, txt, docx, html
+  chat:
+    top-k: 5
+    # Chunks below this similarity are ignored; with none left, chat answers "not found" without calling the LLM.
+    # Chosen with RetrievalEval#relevanceScores: the highest value that keeps every answerable eval question.
+    # Off-topic questions above it still reach the LLM, which is told to reply "not found".
+    similarity-threshold: 0.45
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info

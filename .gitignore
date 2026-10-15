@@ -1,0 +1,25 @@
+# Java / Maven / Gradle
+target/
+build/
+.gradle/
+*.class
+
+# Node / frontend
+node_modules/
+dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Secrets
+.env
+*.env.local
+application-local.yml
+
+# Local planning notes (not part of the product)
+docs/PLAN.md

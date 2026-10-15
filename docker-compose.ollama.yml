@@ -1,0 +1,24 @@
+# Adds Ollama as a container, for machines without native Ollama. CPU-only on macOS.
+#   docker compose -f docker-compose.yml -f docker-compose.ollama.yml up --build
+services:
+  ollama:
+    image: ollama/ollama:0.40.4
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    environment:
+      SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+volumes:
+  ollama:

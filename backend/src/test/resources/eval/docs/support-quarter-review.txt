@@ -1,0 +1,13 @@
+Notes from the customer support quarterly review
+
+The quarter opened with a backlog that nobody was proud of. On the first of July there were 1,940 open tickets, and the oldest of them had been waiting for 23 days. Most of the backlog came from a single source: invoices generated after the June pricing change contained a rounding error on annual plans, and every affected customer wrote in at least once. Engineering shipped a fix on July 9, but the support team still had to answer each ticket by hand and issue a correction.
+
+To get through it, the team ran what everyone came to call the swarm. For two weeks, every engineer on the billing team spent their mornings answering support tickets alongside the agents. It was unpopular at first, but it had an unexpected benefit: the engineers saw first-hand how confusing the invoice layout was, and three of the changes they proposed afterwards are now part of the new invoice design that ships next month.
+
+Response times improved steadily once the backlog was gone. The median time to first response fell from 11 hours in July to 2.5 hours in September. The team attributes most of that gain to the new routing rules, which send any ticket mentioning a refund straight to the payments queue instead of letting it wait in the general inbox.
+
+Customer satisfaction did not move as much as we hoped. The CSAT score rose from 81 to 84 percent, which is good but below the target of 88 percent. When we read the negative ratings, the most common complaint was not speed at all: customers disliked being asked to repeat information they had already given in the chat widget before the ticket was created. Fixing that handover is the main goal for next quarter.
+
+Staffing was the other big topic. Two agents left in August, and hiring took longer than planned because we decided to require fluent German for both roles, after realizing that 30 percent of tickets now come from customers in Germany, Austria and Switzerland. Both positions were filled by mid-September, and the new hires shadowed senior agents for three weeks before taking tickets on their own.
+
+The review closed with a decision about the knowledge base. Search analytics showed that the article people looked for most often, how to change the billing email address, did not exist at all. The team agreed that every ticket answered with a written explanation longer than a paragraph should be turned into a help article within a week, and Marta will report on how many articles this produces at the next review.

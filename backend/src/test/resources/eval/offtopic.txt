@@ -1,0 +1,17 @@
+# Questions the eval corpus can't answer. Used to calibrate app.chat.similarity-threshold.
+What is the capital of France?
+How do I bake sourdough bread?
+Who won the football world cup in 2018?
+How do I reset my home wifi router?
+What is the boiling point of water at high altitude?
+Recommend a good science fiction novel.
+How many moons does Jupiter have?
+What is the best way to learn to play the guitar?
+How do I change a flat tyre on a bicycle?
+Explain the rules of chess castling.
+What is the stock price of Apple today?
+How do I make a cappuccino at home?
+What is the company's dress code?
+Does the company offer a pension plan?
+How do I configure Kubernetes autoscaling?
+What GraphQL endpoints does the API expose?

@@ -1,0 +1,41 @@
+INCIDENT RESPONSE RUNBOOK
+
+This runbook describes how the platform engineering team responds to production incidents. It applies to every service owned by the platform group, including the API gateway, the order service and the shared PostgreSQL clusters.
+
+Severity Levels
+
+SEV1 means a full outage or data loss affecting all customers. SEV2 means a major feature is unavailable or severely degraded for many customers. SEV3 means a minor feature is broken or a workaround exists. SEV4 covers cosmetic issues and internal tooling problems.
+
+For SEV1 and SEV2 incidents, the on-call engineer must acknowledge the page within 10 minutes. SEV3 pages must be acknowledged within one hour during business hours. SEV4 issues are tracked as normal tickets and do not page anyone.
+
+Declaring an Incident
+
+Anyone can declare an incident by typing /incident in the #ops channel. The bot creates a dedicated channel named after the incident and starts a timeline. The person who declares the incident becomes the incident commander until they hand the role to someone else.
+
+The incident commander coordinates the response but should not debug the problem themselves. Their job is to keep the timeline updated, assign tasks, and decide when to escalate. For SEV1 incidents, a separate communications lead is appointed to update the public status page every 30 minutes.
+
+Escalation
+
+If a SEV1 or SEV2 incident is not mitigated within 45 minutes, escalate to the engineering manager on call. If it is still not mitigated after two hours, the VP of Engineering must be informed by phone, not only by chat. Escalate to the database team immediately for any incident involving replication lag above 60 seconds or a failed failover.
+
+Mitigation Steps for the API Gateway
+
+First, check the gateway dashboard for error rate and latency by region. If a single region is unhealthy, drain it by setting its traffic weight to zero in the load balancer configuration. Draining a region takes about three minutes to take full effect.
+
+If errors started after a deployment, roll back to the previous release with the deploy tool. Rollbacks are always preferred over hotfixes during an active incident. Do not run database migrations during an incident unless the incident commander explicitly approves it.
+
+If the gateway is overloaded, enable the emergency rate limit, which caps each customer at 20 requests per second. Remember to disable the emergency rate limit once traffic returns to normal, because it also blocks legitimate batch jobs.
+
+Database Failover
+
+The shared PostgreSQL clusters use automatic failover managed by Patroni. A failover normally completes in under 30 seconds. If automatic failover does not complete within two minutes, the database team may trigger a manual failover, but only after confirming that the replica is fully caught up, to avoid losing committed transactions.
+
+After any failover, check that connection pools in the order service have reconnected. Pools that hold stale connections must be restarted, which can be done by rolling the order service deployment.
+
+After the Incident
+
+Every SEV1 and SEV2 incident requires a written postmortem within five business days. Postmortems are blameless: describe what happened and why the system allowed it, not who made a mistake. Action items from the postmortem are filed as tickets with an owner and a due date, and the incident commander reviews their status at the next weekly operations meeting.
+
+On-Call Compensation
+
+Engineers on the primary rotation receive an on-call allowance of 350 euros per week. Pages that are handled between 22:00 and 07:00 also earn time off in lieu equal to the time spent, rounded up to the next full hour.

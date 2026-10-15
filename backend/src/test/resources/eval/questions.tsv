@@ -1,0 +1,56 @@
+# question	text the top chunk(s) must contain (whitespace-normalized, case-sensitive)
+How many vacation days do full-time employees get?	27 days of paid vacation
+When do carried-over vacation days expire?	expire if they are not used by March 31
+How long can I work from another country?	limited to 30 days in any 12-month period
+How much is the home office stipend?	stipend of 900 euros
+How much parental leave does a non-birthing parent get?	Non-birthing parents receive 12 weeks
+When do I need a doctor's note for sick leave?	more than three consecutive working days
+On which day is salary paid?	paid monthly on the 25th
+How much is the yearly learning budget?	learning budget of 1,200 euros
+What can the wellbeing allowance be spent on?	gym memberships, sports clubs, therapy apps
+What is the daily meal limit when travelling for work?	meals are reimbursed up to 70 euros per day
+What is the hotel limit in London?	250 euros per night in London
+How quickly must a lost laptop be reported?	within one hour by calling the security hotline
+How long does production database access last?	expires automatically after four hours
+What is the notice period after probation?	three months afterwards
+How long does an old API key keep working after rotation?	old key keeps working for 24 hours
+What is the production write rate limit?	50 write requests per second
+What backoff strategy should clients use after a 429?	starting at 500 milliseconds and capping at 32 seconds
+How long are idempotency keys stored?	Idempotency keys are stored for 72 hours
+What happens if I reuse an idempotency key with a different body?	idempotency_key_mismatch
+What is the minimum payment amount?	minimum amount is 50 cents
+How long can bank transfers stay pending?	pending for up to three business days
+How long after a payment can it be refunded?	up to 180 days after the original payment
+How do I verify a webhook signature?	HMAC-SHA256 of the raw request body
+How long are failed webhook deliveries retried?	retried with exponential backoff for up to three days
+What is the maximum page size for list endpoints?	at most 100 objects per page
+How long are old API versions supported?	at least 24 months
+How fast must on-call acknowledge a SEV1 page?	acknowledge the page within 10 minutes
+How do I declare an incident?	typing /incident in the #ops channel
+How often is the status page updated during a SEV1?	every 30 minutes
+When must a SEV2 be escalated to the engineering manager?	not mitigated within 45 minutes
+When should the database team be called immediately?	replication lag above 60 seconds
+How long does draining a region take?	about three minutes to take full effect
+What does the emergency rate limit cap customers at?	20 requests per second
+When can the database team trigger a manual failover?	does not complete within two minutes
+When is a postmortem due?	postmortem within five business days
+How much is the on-call allowance?	350 euros per week
+How long did MongoDB and PostgreSQL run side by side?	side by side for eleven weeks
+How many orphaned orders were found in MongoDB?	more than 8,000 orders
+What is the legacy_attributes column for?	fields that nobody could explain
+How much faster did the monthly revenue report get?	from 14 minutes to 40 seconds
+Why was the read rollout paused at 32 percent?	case-insensitive collation for email lookups
+How long did the write cutover take?	took 47 minutes
+How much did running both databases cost?	6,500 euros per month
+Why was the read rollout paused?	case-insensitive collation for email lookups
+Why did the team move away from MongoDB?	every new report meant another hand-written aggregation pipeline
+How did they check the two databases contained the same data?	compared row counts and checksums
+What got slower after moving to PostgreSQL?	from a median of 1.8 milliseconds to 2.4 milliseconds
+What would they do differently next time?	invest in the reconciliation tooling from the very first day
+What caused the support backlog?	rounding error on annual plans
+What was the swarm?	every engineer on the billing team spent their mornings answering support tickets
+Why did response times improve?	send any ticket mentioning a refund straight to the payments queue
+What did unhappy customers complain about most?	being asked to repeat information
+Why did hiring take longer than planned?	require fluent German for both roles
+What was decided about the knowledge base?	should be turned into a help article within a week
+How big was the backlog at the start of the quarter?	1,940 open tickets
