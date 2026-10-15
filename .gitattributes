@@ -1,0 +1,7 @@
+# Normalize text files to LF in the repository; scripts that run inside Linux containers must stay LF on checkout.
+* text=auto
+backend/mvnw text eol=lf
+*.sh text eol=lf
+*.cmd text eol=crlf
+*.gif binary
+*.png binary
