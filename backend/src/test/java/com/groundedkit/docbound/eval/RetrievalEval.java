@@ -143,7 +143,7 @@ class RetrievalEval {
 				.temperature(0.2)
 				.numCtx(8192)
 				.build())
-			.build()), new SummaryProperties(true, 12000));
+			.build()), new SummaryProperties(true, Integer.getInteger("summary.section-chars", 12000)));
 
 		Map<String, List<String>> chunksByFile = new java.util.LinkedHashMap<>();
 		for (Document chunk : chunks) {

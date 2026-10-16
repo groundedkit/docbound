@@ -6,6 +6,7 @@ import com.groundedkit.docbound.FakeChatModel;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,6 +21,8 @@ class DocumentSummarizerTest {
 		String summary = summarizer.summarize("Handbook", List.of("Vacation is 27 days.", "Remote work is allowed."));
 
 		assertThat(model.calls()).isEqualTo(1);
+		assertThat(model.lastCallPrompt().getOptions()).isInstanceOfSatisfying(OllamaChatOptions.class,
+				options -> assertThat(options.getNumPredict()).isEqualTo(DocumentSummarizer.MAX_SUMMARY_TOKENS));
 		assertThat(model.lastCallPrompt().getInstructions().getFirst().getText()).isEqualTo(DocumentSummarizer.SUMMARY_PROMPT);
 		assertThat(model.lastCallPrompt().getUserMessage().getText()).startsWith("Document: Handbook\n\n");
 		// The fake model echoes its input; the echoed "Document:" line is removed from the summary.

@@ -86,7 +86,11 @@ public class DocumentSummaries {
 
 	/** Queues a summary for every document that doesn't have one yet. */
 	public void summarizeMissing() {
-		for (DocumentRecord document : documents.findWithoutSummary()) {
+		List<DocumentRecord> missing = documents.findWithoutSummary();
+		if (!missing.isEmpty()) {
+			log.info("Summarizing {} document(s) uploaded without a summary", missing.size());
+		}
+		for (DocumentRecord document : missing) {
 			executor.execute(() -> summarize(document.id(), document.filename(), chunks(document.id())));
 		}
 	}
@@ -97,7 +101,11 @@ public class DocumentSummaries {
 			long start = System.nanoTime();
 			String title = DocumentTitles.fromFilename(filename);
 			String summary = summarizer.summarize(title, chunks);
-			if (summary.isBlank() || !documents.saveSummary(id, summary)) {
+			if (summary.isBlank()) {
+				log.warn("The model returned an empty summary for '{}'", filename);
+				return;
+			}
+			if (!documents.saveSummary(id, summary)) {
 				return;
 			}
 			Map<String, Object> metadata = new HashMap<>();

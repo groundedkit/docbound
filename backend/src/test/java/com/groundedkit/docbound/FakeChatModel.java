@@ -11,7 +11,9 @@ import org.springframework.ai.chat.metadata.DefaultUsage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
 
 /**
  * Streams a scripted answer token by token and records the prompts it receives. The last streamed response
@@ -70,6 +72,12 @@ public class FakeChatModel implements ChatModel {
 
 	public Prompt lastCallPrompt() {
 		return callPrompts.getLast();
+	}
+
+	/** Like the real model: ChatClient merges per-request options into this type, so Ollama options survive. */
+	@Override
+	public ChatOptions getOptions() {
+		return OllamaChatOptions.builder().build();
 	}
 
 	@Override
