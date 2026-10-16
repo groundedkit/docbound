@@ -107,6 +107,30 @@ describe('App', () => {
     })
   })
 
+  it('suggests questions about the uploaded documents and asks one when clicked', async () => {
+    render(<App />)
+    const suggestion = await screen.findByRole('button', { name: 'What is the Handbook document about?' })
+
+    fireEvent.click(suggestion)
+
+    expect(await screen.findByText(/You get 27 days/)).toBeTruthy()
+    const chatCall = vi.mocked(fetch).mock.calls.find(([url]) => url === '/api/chat')!
+    expect(JSON.parse(chatCall[1]!.body as string).question).toBe('What is the Handbook document about?')
+  })
+
+  it('copies an answer without its citation markers', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Vacation?' } })
+    fireEvent.keyDown(screen.getByLabelText('Question'), { key: 'Enter' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('You get 27 days.'))
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeTruthy()
+  })
+
   it('sends the question as JSON to the chat endpoint', async () => {
     render(<App />)
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: '  Vacation?  ' } })

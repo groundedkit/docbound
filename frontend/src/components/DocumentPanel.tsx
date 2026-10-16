@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { deleteDocument, listDocuments, uploadDocument, type DocumentRecord } from '../api'
+import { documentTitle, fileTag } from '../format'
 
 /** While the backend is unreachable, check again this often so the page recovers by itself. */
 const RETRY_MS = 5000
@@ -13,14 +14,14 @@ interface Upload {
 }
 
 interface Props {
-  onCountChange: (count: number) => void
+  onDocumentsChange: (documents: DocumentRecord[]) => void
   /** The current load error (e.g. backend unreachable), or null once documents load. */
   onError: (message: string | null) => void
 }
 
 let nextUploadKey = 1
 
-export function DocumentPanel({ onCountChange, onError }: Props) {
+export function DocumentPanel({ onDocumentsChange, onError }: Props) {
   const [documents, setDocuments] = useState<DocumentRecord[] | null>(null)
   const [uploads, setUploads] = useState<Upload[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -32,14 +33,14 @@ export function DocumentPanel({ onCountChange, onError }: Props) {
       const list = await listDocuments()
       setDocuments(list)
       setLoadError(null)
-      onCountChange(list.length)
+      onDocumentsChange(list)
       onError(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not load documents'
       setLoadError(message)
       onError(message)
     }
-  }, [onCountChange, onError])
+  }, [onDocumentsChange, onError])
 
   useEffect(() => {
     let active = true
@@ -47,7 +48,7 @@ export function DocumentPanel({ onCountChange, onError }: Props) {
       (list) => {
         if (!active) return
         setDocuments(list)
-        onCountChange(list.length)
+        onDocumentsChange(list)
       },
       (error: unknown) => {
         if (!active) return
@@ -59,7 +60,7 @@ export function DocumentPanel({ onCountChange, onError }: Props) {
     return () => {
       active = false
     }
-  }, [onCountChange, onError])
+  }, [onDocumentsChange, onError])
 
   useEffect(() => {
     if (loadError === null) return
@@ -103,7 +104,10 @@ export function DocumentPanel({ onCountChange, onError }: Props) {
       <p className="wordmark" aria-label="Docbound">
         docbound<sup aria-hidden="true">1</sup>
       </p>
-      <h2>Documents</h2>
+      <div className="section-title">
+        <h2>Documents</h2>
+        {documents && documents.length > 0 && <span className="count">{documents.length}</span>}
+      </div>
 
       <div
         className={`dropzone${dragging ? ' dragging' : ''}`}
@@ -136,6 +140,9 @@ export function DocumentPanel({ onCountChange, onError }: Props) {
       <ul className="document-list">
         {uploads.map((u) => (
           <li key={u.key} className={`document${u.error ? ' failed' : ' pending'}`}>
+            <span className="file-tag" aria-hidden="true">
+              {fileTag(u.name)}
+            </span>
             <div className="document-info">
               <span className="document-name">{u.name}</span>
               <span className="document-meta">{u.error ?? 'Indexing…'}</span>
@@ -154,8 +161,12 @@ export function DocumentPanel({ onCountChange, onError }: Props) {
         ))}
         {documents?.map((document) => (
           <li key={document.id} className="document">
+            <span className="file-tag" aria-hidden="true">
+              {fileTag(document.filename)}
+            </span>
             <div className="document-info">
-              <span className="document-name" title={document.filename}>
+              <span className="document-name">{documentTitle(document.filename)}</span>
+              <span className="document-file" title={document.filename}>
                 {document.filename}
               </span>
               <span className="document-meta">

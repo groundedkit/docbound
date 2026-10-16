@@ -47,3 +47,45 @@ export function splitBold(text: string): InlinePart[] {
   if (last < text.length) parts.push({ bold: false, text: text.slice(last) })
   return parts
 }
+
+/**
+ * `policy_workplace_concerns.pdf` → `Policy Workplace Concerns`, matching the backend's DocumentTitles so the
+ * document list and the answers name documents the same way. Mixed- or upper-case words (API, iOS) are kept.
+ */
+export function documentTitle(filename: string): string {
+  const name = filename.trim().replace(/\.[^.]+$/, '')
+  const words = name.split(/[\s_\-.]+/).filter(Boolean)
+  if (words.length === 0) return filename
+  return words.map((word) => (word === word.toLowerCase() ? word[0].toUpperCase() + word.slice(1) : word)).join(' ')
+}
+
+const LIST_ITEM = /^\s*([-*•●▪◦]|\d+[.)])\s+/
+
+/**
+ * Text extracted from PDFs breaks lines wherever the page did. For reading a passage, joins those wrapped lines
+ * back into paragraphs, keeping blank lines and list items (bullets, numbers) on their own lines.
+ */
+export function tidyPassage(text: string): string[] {
+  const paragraphs: string[] = []
+  let current = ''
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (line === '') {
+      if (current) paragraphs.push(current)
+      current = ''
+    } else if (LIST_ITEM.test(line) && current) {
+      paragraphs.push(current)
+      current = line
+    } else {
+      current = current ? `${current} ${line}` : line
+    }
+  }
+  if (current) paragraphs.push(current)
+  return paragraphs.map((p) => p.replace(/\(\s+/g, '(').replace(/\s+\)/g, ')').replace(/\s{2,}/g, ' '))
+}
+
+/** A file's type as a short tag for the document list, e.g. "PDF". */
+export function fileTag(filename: string): string {
+  const extension = /\.([^.]+)$/.exec(filename)?.[1]?.toLowerCase() ?? ''
+  return { markdown: 'MD', htm: 'HTML' }[extension] ?? (extension.toUpperCase() || 'FILE')
+}

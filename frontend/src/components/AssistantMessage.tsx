@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Citation } from '../api'
 import { splitCitations, stripCitations } from '../citations'
 import { parseBlocks, splitBold } from '../format'
@@ -17,6 +17,17 @@ export function AssistantMessage({ turn, selected, onOpenSource }: Props) {
   const byIndex = new Map(turn.sources.map((source) => [source.index, source]))
   const citedSources = (turn.cited ?? []).flatMap((index) => byIndex.get(index) ?? [])
   const text = notFound ? stripCitations(turn.text) : turn.text
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(stripCitations(turn.text).trim())
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Clipboard access can be refused (e.g. an insecure origin); the button then just does nothing.
+    }
+  }
 
   /** One line of an answer: bold spans plus clickable [n] citations. */
   function inline(line: string): ReactNode[] {
@@ -45,7 +56,14 @@ export function AssistantMessage({ turn, selected, onOpenSource }: Props) {
     <div className={`message assistant${notFound ? ' not-found' : ''}`}>
       <div className="message-body">
         {turn.text === '' && turn.status === 'streaming' && (
-          <span className="thinking">{turn.sources.length ? 'Writing an answer' : 'Searching your documents'}</span>
+          <span className="thinking">
+            {turn.sources.length ? 'Writing an answer' : 'Searching your documents'}
+            <span className="dots" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+          </span>
         )}
         {parseBlocks(text).map((block, b) => {
           if (block.kind === 'paragraph') {
@@ -87,7 +105,17 @@ export function AssistantMessage({ turn, selected, onOpenSource }: Props) {
 
       {turn.status === 'error' && <p className="message-error" role="alert">{turn.error}</p>}
       {turn.status === 'stopped' && <p className="message-note">Stopped.</p>}
-      {turn.status === 'done' && turn.durationMs !== undefined && turn.durationMs > 0 && (
+      {turn.status === 'done' && !notFound && (
+        <div className="message-actions">
+          <button type="button" className="text-button" onClick={() => void copy()}>
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          {turn.durationMs !== undefined && turn.durationMs > 0 && (
+            <span className="message-note">{(turn.durationMs / 1000).toFixed(1)} s</span>
+          )}
+        </div>
+      )}
+      {turn.status === 'done' && notFound && turn.durationMs !== undefined && turn.durationMs > 0 && (
         <p className="message-note">{(turn.durationMs / 1000).toFixed(1)} s</p>
       )}
     </div>

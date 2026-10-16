@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { Citation } from '../api'
+import { tidyPassage } from '../format'
 
 interface Props {
   citation: Citation
@@ -28,7 +29,19 @@ export function SourcePanel({ citation, onClose }: Props) {
           ×
         </button>
       </header>
-      <div className="source-text">{citation.text}</div>
+      <div className="source-body">
+        <div className="match" aria-hidden="true">
+          <span className="match-bar">
+            <span style={{ width: `${Math.round(citation.score * 100)}%` }} />
+          </span>
+          <span>Relevance to your question</span>
+        </div>
+        <blockquote className="source-text">
+          {tidyPassage(citation.text).map((paragraph, i) => (
+            <p key={i}>{paragraph}</p>
+          ))}
+        </blockquote>
+      </div>
     </aside>
   )
 }
