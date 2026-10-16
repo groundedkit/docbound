@@ -59,6 +59,10 @@ public class ChatService {
 			list, a comparison), use short bullet points that start with "- ".
 			- Use the earlier conversation to understand what a follow-up question refers to, but take facts only \
 			from the current sources.
+			- If the message questions or challenges your previous answer (for example "are you sure?" or "is that \
+			right?"), check that answer against the current sources. If they support it, say so and restate the key \
+			points with citations. Correct only what the sources contradict. Never apologize for or retract an answer \
+			the sources support.
 			- If the sources are related but don't answer the question exactly (for example, which point is "most \
 			important" when the document doesn't rank them), say what the documents do say, with citations, and \
 			point out what they don't state.
@@ -76,7 +80,9 @@ public class ChatService {
 			Rewrite the user's latest message as a standalone question that can be understood without the \
 			conversation, so it can be used to search their documents. Resolve words like "it", "that" and "the \
 			most important one" using the conversation. Keep the user's wording where possible. If the message is \
-			already standalone, return it unchanged. If the message is only a greeting, thanks or other small talk, \
+			already standalone, return it unchanged. If the message only questions or asks to double-check the previous \
+			answer (for example "are you sure?", "really?" or "is that right?"), return the user's previous question \
+			unchanged. If the message is only a greeting, thanks or other small talk, \
 			reply with exactly %s. Reply with the question only.
 			""".formatted(SMALL_TALK);
 
@@ -147,7 +153,8 @@ public class ChatService {
 			messages.add(new UserMessage(turn.question()));
 			messages.add(new AssistantMessage(historyAnswer(turn.answer())));
 		}
-		messages.add(new UserMessage(userMessage(question, sources, titles)));
+		String refersTo = searchQuery.equals(question) || SMALL_TALK.equals(searchQuery) ? null : searchQuery;
+		messages.add(new UserMessage(userMessage(question, refersTo, sources, titles)));
 		return Flux.concat(Flux.just(sourcesEvent), generate(new Prompt(messages), sources.size()));
 	}
 
@@ -245,7 +252,11 @@ public class ChatService {
 		return documents.findAll().stream().map(DocumentRecord::filename).map(DocumentTitles::fromFilename).distinct().toList();
 	}
 
-	static String userMessage(String question, List<Citation> sources, List<String> titles) {
+	/**
+	 * @param refersTo for a follow-up, the standalone question it was understood as (used for the search), so the
+	 * model reads "are you sure?" in the context it was asked in; null otherwise
+	 */
+	static String userMessage(String question, String refersTo, List<Citation> sources, List<String> titles) {
 		StringBuilder message = new StringBuilder("Documents: ");
 		List<String> listed = titles.subList(0, Math.min(titles.size(), MAX_LISTED_DOCUMENTS));
 		message.append(String.join(", ", listed.stream().map(t -> "\"" + t + "\"").toList()));
@@ -266,7 +277,11 @@ public class ChatService {
 			// Repeated next to the sources: small models follow nearby instructions better than the system prompt.
 			message.append("Answer using only these sources, citing them like [1] right after each statement.\n\n");
 		}
-		return message.append("Message: ").append(question.strip()).toString();
+		message.append("Message: ").append(question.strip());
+		if (refersTo != null) {
+			message.append("\nThis message refers to: ").append(refersTo.strip());
+		}
+		return message.toString();
 	}
 
 	/** Earlier answers go back to the model without their [n] markers, which referred to that turn's sources. */

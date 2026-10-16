@@ -146,7 +146,19 @@ class ChatServiceTest {
 		assertThat(messages.get(1).getText()).isEqualTo("tell me about vacation");
 		assertThat(messages.get(2)).isInstanceOf(AssistantMessage.class);
 		assertThat(messages.get(2).getText()).isEqualTo("You get 27 days.");
-		assertThat(messages.get(3).getText()).endsWith("Message: are you sure?");
+		// The model sees what the follow-up was understood as, so "are you sure?" isn't read in isolation.
+		assertThat(messages.get(3).getText()).endsWith("""
+				Message: are you sure?
+				This message refers to: How many days of paid vacation do full-time employees receive?""");
+	}
+
+	@Test
+	void standaloneQuestionIsSentWithoutAnInterpretation() {
+		service.answer("How many vacation days?", List.of(), null).collectList().block();
+
+		assertThat(model.lastPrompt().getInstructions().getLast().getText())
+			.endsWith("Message: How many vacation days?")
+			.doesNotContain("This message refers to");
 	}
 
 	@Test
