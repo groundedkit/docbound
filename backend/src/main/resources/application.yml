@@ -17,6 +17,11 @@ spring:
     virtual:
       enabled: true
 
+  http:
+    clients:
+      # Blocking model calls (follow-up rewrites, document summaries) can take well over the 10 s default.
+      read-timeout: 5m
+
   mvc:
     async:
       # Chat answers stream for as long as the model generates; on CPU-only machines that can exceed the default.
@@ -60,6 +65,11 @@ app:
     similarity-threshold: 0.45
     # Earlier question-and-answer exchanges used to understand follow-up questions.
     history-turns: 3
+  summaries:
+    # After each upload, write a whole-document summary in the background and store it as a searchable passage,
+    # so "what is this document about?" finds an overview. Measured with RetrievalEval#wholeDocumentQuestions.
+    enabled: true
+    section-chars: 12000
 
 management:
   endpoints:

@@ -89,3 +89,8 @@ export function fileTag(filename: string): string {
   const extension = /\.([^.]+)$/.exec(filename)?.[1]?.toLowerCase() ?? ''
   return { markdown: 'MD', htm: 'HTML' }[extension] ?? (extension.toUpperCase() || 'FILE')
 }
+
+/** "part 3" for an ordinary passage; "summary" for the generated whole-document summary (stored as chunk -1). */
+export function partLabel(chunkIndex: number): string {
+  return chunkIndex < 0 ? 'summary' : `part ${chunkIndex + 1}`
+}

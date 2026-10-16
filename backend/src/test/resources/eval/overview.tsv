@@ -1,0 +1,7 @@
+# Whole-document questions (issue #5): file	question	topics the answer should be able to cover, separated by |
+# A topic counts as covered if any of its /-separated alternatives appears (case-insensitive) in the top-5 passages.
+employee-handbook.md	What is the employee handbook about?	remote/hybrid|vacation|sick|parental|learning|wellbeing|expense|security|leaving/last day/offboarding
+incident-runbook.txt	Give me an overview of the incident runbook.	severity/sev|declar|escalat|gateway|failover|postmortem/post-incident/after the incident|compensation
+payments-api.md	What does the Paystream API reference cover?	authentic/api key|rate limit|idempoten|refund|webhook|paginat|version
+migration-retrospective.txt	Summarize the MongoDB to PostgreSQL migration retrospective.	debezium/change data capture/kafka|reconciliation|schema/tables|jsonb/legacy|faster/slower/performance|feature flag/gradual|cutover/maintenance window|euros/cost
+support-quarter-review.txt	What are the main points of the support quarterly review?	backlog|swarm|first response/response time|csat/satisfaction|german/hiring/agents left|knowledge base/help article

@@ -8,6 +8,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import com.groundedkit.docbound.summary.DocumentSummaries;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,8 +30,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Embeddings and answers come from {@link FakeEmbeddingModel} and {@link FakeChatModel}, so Ollama isn't
  * needed. Skipped when Docker isn't running.
  */
+// Summaries are triggered explicitly (summarizeMissing), so background calls don't mix with scripted chat replies.
 @SpringBootTest(properties = { "spring.ai.model.embedding=none", "spring.ai.model.chat=none",
-		"spring.ai.ollama.init.pull-model-strategy=never" })
+		"spring.ai.ollama.init.pull-model-strategy=never", "app.summaries.enabled=false" })
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
 @Import(ApiIntegrationTest.Config.class)
@@ -66,6 +68,40 @@ class ApiIntegrationTest {
 
 	@Autowired
 	private FakeChatModel chatModel;
+
+	@Autowired
+	private DocumentSummaries summaries;
+
+	@Test
+	void summaryIsStoredAsASearchablePassageAndDeletedWithTheDocument() throws Exception {
+		var file = new MockMultipartFile("file", "leave-policy.md", "text/markdown", """
+				# Parental leave
+				Parents receive 16 weeks of paid leave.
+				""".getBytes(StandardCharsets.UTF_8));
+		var upload = mvc.post().uri("/api/documents").multipart().file(file).exchange();
+		String id = JsonPath.read(upload.getResponse().getContentAsString(), "$.id");
+
+		summaries.summarizeMissing();
+
+		String summary = null;
+		for (int i = 0; i < 100 && summary == null; i++) {
+			Thread.sleep(50);
+			summary = jdbc.sql("SELECT summary FROM documents WHERE id = :id").param("id", java.util.UUID.fromString(id))
+				.query(String.class).optional().orElse(null);
+		}
+		// FakeChatModel echoes its input, so the "summary" contains the document text.
+		assertThat(summary).contains("Parents receive 16 weeks of paid leave.");
+		String passage = jdbc.sql("""
+				SELECT content FROM vector_store
+				WHERE metadata ->> 'document_id' = :id AND metadata ->> 'kind' = 'summary'
+				  AND (metadata ->> 'chunk_index')::int = -1
+				""").param("id", id).query(String.class).single();
+		assertThat(passage).startsWith("Summary of the Leave Policy document:");
+
+		mvc.delete().uri("/api/documents/{id}", id).exchange();
+		assertThat(jdbc.sql("SELECT count(*) FROM vector_store WHERE metadata ->> 'document_id' = :id")
+			.param("id", id).query(Integer.class).single()).isZero();
+	}
 
 	@Test
 	void uploadSearchAndDelete() throws Exception {

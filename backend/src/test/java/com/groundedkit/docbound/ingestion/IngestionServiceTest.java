@@ -11,6 +11,8 @@ import com.groundedkit.docbound.ingestion.IngestionExceptions.UnreadableDocument
 import com.groundedkit.docbound.ingestion.IngestionExceptions.UnsupportedFileTypeException;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.context.ApplicationEventPublisher;
+
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
@@ -32,7 +34,7 @@ class IngestionServiceTest {
 	private final DocumentRepository repository = mock(DocumentRepository.class);
 
 	private final IngestionService service = new IngestionService(vectorStore, repository,
-			new IngestionProperties(100, 20, 60, List.of("txt", "md", "pdf")));
+			new IngestionProperties(100, 20, 60, List.of("txt", "md", "pdf")), mock(ApplicationEventPublisher.class));
 
 	@Test
 	void splitsFileIntoChunksTaggedWithTheirSource() {

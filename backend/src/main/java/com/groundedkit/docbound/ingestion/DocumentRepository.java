@@ -43,6 +43,19 @@ public class DocumentRepository {
 		return jdbc.sql(SELECT + "WHERE id = :id").param("id", id).query(this::map).optional();
 	}
 
+	/** @return {@code false} if the document no longer exists (e.g. it was deleted while being summarized) */
+	public boolean saveSummary(UUID id, String summary) {
+		return jdbc.sql("UPDATE documents SET summary = :summary WHERE id = :id")
+			.param("summary", summary)
+			.param("id", id)
+			.update() > 0;
+	}
+
+	/** Documents uploaded before summaries existed, or whose summary failed (e.g. Ollama was down). */
+	public List<DocumentRecord> findWithoutSummary() {
+		return jdbc.sql(SELECT + "WHERE summary IS NULL ORDER BY created_at").query(this::map).list();
+	}
+
 	/** @return {@code true} if a row was deleted */
 	public boolean deleteById(UUID id) {
 		return jdbc.sql("DELETE FROM documents WHERE id = :id").param("id", id).update() > 0;

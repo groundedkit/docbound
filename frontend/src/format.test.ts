@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { documentTitle, fileTag, parseBlocks, splitBold, tidyPassage } from './format'
+import { documentTitle, fileTag, parseBlocks, partLabel, splitBold, tidyPassage } from './format'
 
 describe('parseBlocks', () => {
   it('groups lines into paragraphs and lists', () => {
@@ -64,5 +64,13 @@ describe('fileTag', () => {
     expect(fileTag('handbook.PDF')).toBe('PDF')
     expect(fileTag('notes.markdown')).toBe('MD')
     expect(fileTag('README')).toBe('FILE')
+  })
+})
+
+describe('partLabel', () => {
+  it('numbers passages from 1 and names the document summary', () => {
+    expect(partLabel(0)).toBe('part 1')
+    expect(partLabel(4)).toBe('part 5')
+    expect(partLabel(-1)).toBe('summary')
   })
 })

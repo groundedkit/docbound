@@ -202,6 +202,7 @@ flowchart LR
    - Whole sentences are packed up to 400 tokens. A longer passage continues in a new chunk that repeats the heading and the last ~100 tokens, so an answer on a boundary isn't lost.
 3. **Embed and store:** each chunk is embedded with `nomic-embed-text` and saved in pgvector, tagged with its document, file name and position.
 4. **Track:** a row in the `documents` table records the upload. Steps 3 and 4 run in one transaction, so a failed upload leaves nothing behind.
+5. **Summarize:** in the background, the model writes a short summary of the whole document (part by part, then combined) and stores it as one more searchable passage. Questions like "what is this document about?" then find an overview instead of five scattered fragments; sources show it as "summary". Documents uploaded before this feature are summarized when the backend starts.
 
 ### Asking a question
 
@@ -286,6 +287,8 @@ Settings live in [`backend/src/main/resources/application.yml`](backend/src/main
 | `app.chat.top-k` | `5` | How many chunks the model gets as sources |
 | `app.chat.similarity-threshold` | `0.45` | Below this similarity, a chunk isn't used as a source |
 | `app.chat.history-turns` | `3` | How many earlier exchanges are used to understand follow-up questions (0 turns follow-ups off) |
+| `app.summaries.enabled` | `true` | Write a whole-document summary after each upload (takes the model 10–40 s per document, in the background) |
+| `app.summaries.section-chars` | `12000` | Text summarized per model call; longer documents are summarized in parts first |
 | `app.ingestion.chunk-size` | `400` | Maximum chunk size in tokens |
 | `app.ingestion.chunk-overlap` | `100` | Tokens repeated when a passage continues in the next chunk |
 | `app.ingestion.paragraph-break-tokens` | `60` | Once a chunk holds this many tokens, it ends at the next paragraph |
@@ -371,6 +374,8 @@ Add your own documents and questions to tune chunking for your data. These resul
 MRR (mean reciprocal rank) scores how high the right chunk ranks, from 0 to 1. With paragraph breaks on, the chunk size (300, 400 or 600) made no difference on this corpus, because almost every paragraph is shorter than the limit.
 
 `RetrievalEval#relevanceScores` compares similarity scores for answerable questions and for the off-topic questions in `offtopic.txt`; it's how the threshold of 0.45 was chosen. 0.45 is the highest value that keeps all 55 answerable questions (the vaguest, "What would they do differently next time?", scores 0.475). Off-topic questions often score as high as real answers (e.g. "What is the company's dress code?" at 0.64), so they're handled by the model's "not found" rule rather than by the threshold.
+
+`RetrievalEval#wholeDocumentQuestions` covers overview questions like "What is the employee handbook about?" (`overview.tsv`). Each question lists the document's main topics; the score is how many of them the top 5 chunks mention. Five scattered chunks covered 73% of the topics; with the generated summaries stored as passages, coverage is 100%, each summary ranks in the top 5 for its question, and the 55 specific questions are unaffected (55/55 in the top 5).
 
 `nomic-embed-text`'s `search_query:`/`search_document:` prefixes were also tested and didn't improve results, so they aren't used.
 

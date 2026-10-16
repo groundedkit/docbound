@@ -20,6 +20,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,10 +53,14 @@ public class IngestionService {
 
 	private final StructureAwareTextSplitter splitter;
 
-	public IngestionService(VectorStore vectorStore, DocumentRepository documents, IngestionProperties properties) {
+	private final ApplicationEventPublisher events;
+
+	public IngestionService(VectorStore vectorStore, DocumentRepository documents, IngestionProperties properties,
+			ApplicationEventPublisher events) {
 		this.vectorStore = vectorStore;
 		this.documents = documents;
 		this.properties = properties;
+		this.events = events;
 		this.splitter = new StructureAwareTextSplitter(properties.chunkSize(), properties.chunkOverlap(),
 				properties.paragraphBreakTokens());
 	}
@@ -99,6 +104,7 @@ public class IngestionService {
 		documents.insert(record);
 		vectorStore.add(tagged);
 		log.info("Ingested '{}' as {} ({} chunks)", filename, documentId, tagged.size());
+		events.publishEvent(new DocumentIngested(documentId, filename, tagged.stream().map(Document::getText).toList()));
 		return record;
 	}
 

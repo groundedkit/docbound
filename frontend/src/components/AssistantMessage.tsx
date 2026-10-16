@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import type { Citation } from '../api'
 import { splitCitations, stripCitations } from '../citations'
-import { parseBlocks, splitBold } from '../format'
+import { parseBlocks, partLabel, splitBold } from '../format'
 import type { AssistantTurn } from '../useChat'
 
 interface Props {
@@ -96,7 +96,7 @@ export function AssistantMessage({ turn, selected, onOpenSource }: Props) {
               >
                 <span className="chip-index">{source.index}</span>
                 <span className="chip-name">{source.title}</span>
-                <span className="chip-part">part {source.chunkIndex + 1}</span>
+                <span className="chip-part">{partLabel(source.chunkIndex)}</span>
               </button>
             </li>
           ))}

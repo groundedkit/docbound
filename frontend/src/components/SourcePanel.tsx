@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import type { Citation } from '../api'
-import { tidyPassage } from '../format'
+import { partLabel, tidyPassage } from '../format'
 
 interface Props {
   citation: Citation
@@ -22,7 +22,7 @@ export function SourcePanel({ citation, onClose }: Props) {
           <p className="source-label">Source {citation.index}</p>
           <h2>{citation.title}</h2>
           <p className="source-meta">
-            {citation.filename} · part {citation.chunkIndex + 1} · {Math.round(citation.score * 100)}% match
+            {citation.filename} · {partLabel(citation.chunkIndex)} · {Math.round(citation.score * 100)}% match
           </p>
         </div>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close source">

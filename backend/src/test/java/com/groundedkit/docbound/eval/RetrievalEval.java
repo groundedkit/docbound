@@ -10,17 +10,23 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
+import com.groundedkit.docbound.chat.DocumentTitles;
 import com.groundedkit.docbound.ingestion.StructureAwareTextSplitter;
+import com.groundedkit.docbound.summary.DocumentSummarizer;
+import com.groundedkit.docbound.summary.SummaryProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.OllamaEmbeddingModel;
 import org.springframework.ai.ollama.api.OllamaApi;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.ai.ollama.api.OllamaEmbeddingOptions;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.transformer.splitter.TextSplitter;
@@ -30,6 +36,8 @@ import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.web.client.RestClient;
 
 /**
  * Retrieval quality benchmark: ingests the documents in {@code src/test/resources/eval/docs} with different
@@ -113,6 +121,106 @@ class RetrievalEval {
 				misses.forEach(miss -> System.out.println("      miss: " + miss));
 			}
 		}
+	}
+
+	/**
+	 * Issue #5: for questions about a whole document, how many of its main topics reach the model (the top five
+	 * passages), with and without the document summaries written at upload. Also re-checks the specific questions
+	 * with the summaries added, since a summary passage takes one of the five places. Needs Ollama's chat model too.
+	 */
+	@Test
+	void wholeDocumentQuestions() throws IOException {
+		EmbeddingModel embeddings = embeddingModel();
+		List<Document> chunks = new StructureAwareTextSplitter(400, 100, 60).apply(loadDocuments());
+		DocumentSummarizer summarizer = new DocumentSummarizer(ChatClient.builder(OllamaChatModel.builder()
+			.ollamaApi(OllamaApi.builder()
+				.baseUrl(System.getProperty("ollama.url", "http://localhost:11434"))
+				// Summarizing a long section can take longer than the HTTP client's default 10 s read timeout.
+				.restClientBuilder(RestClient.builder().requestFactory(slowModelRequests()))
+				.build())
+			.options(OllamaChatOptions.builder()
+				.model(System.getProperty("ollama.chat-model", "llama3.2"))
+				.temperature(0.2)
+				.numCtx(8192)
+				.build())
+			.build()), new SummaryProperties(true, 12000));
+
+		Map<String, List<String>> chunksByFile = new java.util.LinkedHashMap<>();
+		for (Document chunk : chunks) {
+			chunksByFile.computeIfAbsent(String.valueOf(chunk.getMetadata().get(TikaDocumentReader.METADATA_SOURCE)),
+					file -> new ArrayList<>()).add(chunk.getText());
+		}
+		List<Document> summaries = new ArrayList<>();
+		for (var file : chunksByFile.entrySet()) {
+			String title = DocumentTitles.fromFilename(file.getKey());
+			long start = System.nanoTime();
+			String summary = summarizer.summarize(title, file.getValue());
+			System.out.printf("%nsummary of %s (%d chunks, %.0f s):%n%s%n", file.getKey(), file.getValue().size(),
+					(System.nanoTime() - start) / 1e9, summary);
+			summaries.add(Document.builder()
+				.text("Summary of the %s document:%n%n%s".formatted(title, summary))
+				.metadata(Map.of(TikaDocumentReader.METADATA_SOURCE, file.getKey(), "kind", "summary"))
+				.build());
+		}
+
+		SimpleVectorStore chunksOnly = SimpleVectorStore.builder(embeddings).build();
+		chunksOnly.add(chunks);
+		SimpleVectorStore withSummaries = SimpleVectorStore.builder(embeddings).build();
+		withSummaries.add(chunks);
+		withSummaries.add(summaries);
+
+		String tsv = new ClassPathResource("eval/overview.tsv").getContentAsString(StandardCharsets.UTF_8);
+		List<String[]> overview = tsv.lines().filter(l -> !l.isBlank() && !l.startsWith("#")).map(l -> l.split("\t")).toList();
+		System.out.printf("%n%-60s %16s %16s %8s%n", "whole-document question", "chunks only", "with summaries", "summary");
+		int topicsTotal = 0;
+		int coveredBefore = 0;
+		int coveredAfter = 0;
+		int summaryRetrieved = 0;
+		for (String[] row : overview) {
+			String[] topics = row[2].split("\\|");
+			int before = topicsCovered(chunksOnly, row[1], topics);
+			int after = topicsCovered(withSummaries, row[1], topics);
+			boolean found = withSummaries.similaritySearch(SearchRequest.builder().query(row[1]).topK(TOP_K).build())
+				.stream()
+				.anyMatch(d -> "summary".equals(d.getMetadata().get("kind")) && row[0].equals(d.getMetadata().get(TikaDocumentReader.METADATA_SOURCE)));
+			topicsTotal += topics.length;
+			coveredBefore += before;
+			coveredAfter += after;
+			summaryRetrieved += found ? 1 : 0;
+			System.out.printf("%-60s %13d/%d %13d/%d %8s%n", row[1], before, topics.length, after, topics.length,
+					found ? "top 5" : "missed");
+		}
+		System.out.printf("%-60s %15.0f%% %15.0f%% %6d/%d%n", "topic coverage", 100.0 * coveredBefore / topicsTotal,
+				100.0 * coveredAfter / topicsTotal, summaryRetrieved, overview.size());
+
+		List<Question> questions = loadQuestions();
+		int hit5Before = 0;
+		int hit5After = 0;
+		for (Question question : questions) {
+			hit5Before += rankOfAnswer(chunksOnly.similaritySearch(SearchRequest.builder().query(question.text()).topK(TOP_K).build()), question.answer()) > 0 ? 1 : 0;
+			hit5After += rankOfAnswer(withSummaries.similaritySearch(SearchRequest.builder().query(question.text()).topK(TOP_K).build()), question.answer()) > 0 ? 1 : 0;
+		}
+		System.out.printf("specific questions, answer in top 5: chunks only %d/%d, with summaries %d/%d%n", hit5Before,
+				questions.size(), hit5After, questions.size());
+	}
+
+	/** How many topics have at least one alternative in the top passages for the question (case-insensitive). */
+	private static int topicsCovered(SimpleVectorStore store, String question, String[] topics) {
+		String context = store.similaritySearch(SearchRequest.builder().query(question).topK(TOP_K).build())
+			.stream()
+			.map(Document::getText)
+			.collect(java.util.stream.Collectors.joining("\n"))
+			.toLowerCase(java.util.Locale.ROOT);
+		int covered = 0;
+		for (String topic : topics) {
+			for (String alternative : topic.split("/")) {
+				if (context.contains(alternative.strip().toLowerCase(java.util.Locale.ROOT))) {
+					covered++;
+					break;
+				}
+			}
+		}
+		return covered;
 	}
 
 	private static double percent(int hits, List<Question> questions) {
@@ -255,6 +363,12 @@ class RetrievalEval {
 			return call(new EmbeddingRequest(List.of(text), null)).getResult().getOutput();
 		}
 
+	}
+
+	private static JdkClientHttpRequestFactory slowModelRequests() {
+		JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory();
+		factory.setReadTimeout(java.time.Duration.ofMinutes(5));
+		return factory;
 	}
 
 }
