@@ -219,11 +219,22 @@ public class ChatService {
 		}
 	}
 
+	/** The newest exchanges that fit in {@code app.chat.history-chars}; the latest one is always kept. */
 	private List<Turn> recent(List<Turn> history) {
-		if (history == null || history.isEmpty() || properties.historyTurns() <= 0) {
+		if (history == null || history.isEmpty() || properties.historyChars() <= 0) {
 			return List.of();
 		}
-		return List.copyOf(history.subList(Math.max(0, history.size() - properties.historyTurns()), history.size()));
+		int used = 0;
+		int first = history.size();
+		while (first > 0) {
+			Turn turn = history.get(first - 1);
+			used += turn.question().length() + historyAnswer(turn.answer()).length();
+			if (used > properties.historyChars() && first < history.size()) {
+				break;
+			}
+			first--;
+		}
+		return List.copyOf(history.subList(first, history.size()));
 	}
 
 	private List<Citation> retrieve(String query, int topK) {

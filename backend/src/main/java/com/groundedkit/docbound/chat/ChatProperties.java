@@ -9,12 +9,14 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param topK                how many chunks to retrieve and give the model as sources
  * @param similarityThreshold chunks scoring below this are not used as sources. The default was chosen with
  *                            {@code RetrievalEval}.
- * @param historyTurns        how many earlier question-and-answer exchanges are used to understand follow-up questions;
- *                            older ones are ignored. 0 turns follow-ups off.
+ * @param historyChars        how much of the conversation (characters of earlier questions and answers) is given to the
+ *                            model for follow-up questions. The newest exchanges that fit are used, so a typical
+ *                            conversation is kept whole; the limit only keeps very long ones within the model's context
+ *                            window. 0 turns follow-ups off.
  */
 @ConfigurationProperties("app.chat")
 public record ChatProperties(
 		@DefaultValue("5") int topK,
 		@DefaultValue("0.45") double similarityThreshold,
-		@DefaultValue("3") int historyTurns) {
+		@DefaultValue("12000") int historyChars) {
 }

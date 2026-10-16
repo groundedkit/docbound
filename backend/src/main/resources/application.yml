@@ -63,8 +63,9 @@ app:
     # greetings, otherwise "I couldn't find that in <document titles>".
     # Chosen with RetrievalEval#relevanceScores: the highest value that keeps every answerable eval question.
     similarity-threshold: 0.45
-    # Earlier question-and-answer exchanges used to understand follow-up questions.
-    history-turns: 3
+    # How much of the conversation (characters of earlier questions and answers) the model sees for follow-ups.
+    # The newest exchanges that fit are used: about 10 typical exchanges, ~3,000 tokens of the 8,192-token context.
+    history-chars: 12000
   summaries:
     # After each upload, write a whole-document summary in the background and store it as a searchable passage,
     # so "what is this document about?" finds an overview. Measured with RetrievalEval#wholeDocumentQuestions.

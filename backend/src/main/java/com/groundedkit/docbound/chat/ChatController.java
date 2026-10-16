@@ -39,7 +39,7 @@ class ChatController {
 	}
 
 	/**
-	 * @param history earlier exchanges, oldest first. Only the most recent {@code app.chat.history-turns} are used.
+	 * @param history earlier exchanges, oldest first. The newest ones that fit in {@code app.chat.history-chars} are used.
 	 */
 	record ChatRequest(@NotBlank @Size(max = 2000) String question, @Min(1) @Max(10) Integer topK,
 			@Valid @Size(max = 20) List<HistoryTurn> history) {

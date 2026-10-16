@@ -1,6 +1,7 @@
 package com.groundedkit.docbound.chat;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -48,7 +49,7 @@ class ChatServiceTest {
 				chunk(1, "## Expenses\n\nMeals are reimbursed up to 70 euros per day when travelling.")));
 		when(documents.findAll()).thenReturn(List.of(
 				new DocumentRecord(documentId, "employee_handbook.md", "text/markdown", 100, 2, Instant.now())));
-		service = service(0.3, 3);
+		service = service(0.3, 12_000);
 	}
 
 	@Test
@@ -90,7 +91,7 @@ class ChatServiceTest {
 
 	@Test
 	void withoutMatchingPassagesTheModelStillRepliesAndKnowsTheDocumentTitles() {
-		ChatService strict = service(0.99, 3);
+		ChatService strict = service(0.99, 12_000);
 		model.respondWith("I can answer questions about the Employee Handbook.");
 
 		List<ChatEvent> events = strict.answer("what can you do?", List.of(), null).collectList().block();
@@ -116,7 +117,7 @@ class ChatServiceTest {
 	@Test
 	void withNoDocumentsAtAllItSaysSoWithoutCallingTheModel() {
 		when(documents.findAll()).thenReturn(List.of());
-		ChatService strict = service(0.99, 3);
+		ChatService strict = service(0.99, 12_000);
 
 		List<ChatEvent> events = strict.answer("hey", List.of(), null).collectList().block();
 
@@ -221,15 +222,46 @@ class ChatServiceTest {
 	}
 
 	@Test
-	void onlyTheMostRecentTurnsAreUsed() {
-		ChatService twoTurns = service(0.3, 2);
+	void olderTurnsAreDroppedOnceTheHistoryBudgetIsFull() {
+		// "third"+"three" and "second"+"two" fit in 20 characters; "first"+"one" doesn't.
+		ChatService small = service(0.3, 20);
 		List<Turn> history = List.of(new Turn("first", "one"), new Turn("second", "two"), new Turn("third", "three"));
 
-		twoTurns.answer("vacation days?", history, null).blockLast();
+		small.answer("vacation days?", history, null).blockLast();
 
 		String conversation = model.lastCallPrompt().getInstructions().getLast().getText();
 		assertThat(conversation).doesNotContain("first").contains("second").contains("third");
 		assertThat(model.lastPrompt().getInstructions()).hasSize(1 + 4 + 1);
+	}
+
+	@Test
+	void aLongConversationIsKeptWholeByDefault() {
+		List<Turn> history = new ArrayList<>();
+		for (int i = 1; i <= 10; i++) {
+			history.add(new Turn("question " + i, "answer " + i));
+		}
+
+		service.answer("vacation days?", history, null).blockLast();
+
+		assertThat(model.lastPrompt().getInstructions()).hasSize(1 + 20 + 1);
+	}
+
+	@Test
+	void theLatestExchangeIsKeptEvenIfItAloneExceedsTheBudget() {
+		ChatService tiny = service(0.3, 5);
+
+		tiny.answer("vacation days?", List.of(new Turn("first", "one"), new Turn("a long question", "a long answer")), null)
+			.blockLast();
+
+		assertThat(model.lastPrompt().getInstructions()).hasSize(1 + 2 + 1);
+	}
+
+	@Test
+	void zeroHistoryTurnsFollowUpsOff() {
+		service(0.3, 0).answer("vacation days?", List.of(new Turn("first", "one")), null).blockLast();
+
+		assertThat(model.calls()).isZero();
+		assertThat(model.lastPrompt().getInstructions()).hasSize(1 + 1);
 	}
 
 	@Test
@@ -304,9 +336,9 @@ class ChatServiceTest {
 		return service.standaloneQuestion("are you sure?", List.of(new Turn("q", "a")));
 	}
 
-	private ChatService service(double threshold, int historyTurns) {
+	private ChatService service(double threshold, int historyChars) {
 		return new ChatService(ChatClient.builder(model), vectorStore, documents,
-				new ChatProperties(5, threshold, historyTurns));
+				new ChatProperties(5, threshold, historyChars));
 	}
 
 	private Document chunk(int index, String text) {

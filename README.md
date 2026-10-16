@@ -166,7 +166,7 @@ The models are downloaded into the container on first start. Skip step 2 and 3 i
 ## Using Docbound
 
 - **Documents** (left): upload PDF, Word (DOCX), Markdown, text or HTML files, up to 20 MB each, with the button or by dragging them in. Each file shows how many parts it was split into. A failed upload shows the reason, such as an unsupported file type. Delete a document with ×.
-- **Chat**: answers stream in as they're generated, with bullet lists for broad questions. Citations like **1** are buttons, and each finished answer lists the documents and parts it actually used. Follow-ups such as "tell me more about the second one" or "are you sure?" use the last 3 exchanges. A "not found" answer is shown muted, without citations. **New chat** starts a fresh conversation; **Stop** cancels an answer.
+- **Chat**: answers stream in as they're generated, with bullet lists for broad questions. Citations like **1** are buttons, and each finished answer lists the documents and parts it actually used. Follow-ups such as "tell me more about the second one" or "are you sure?" use the conversation so far. A "not found" answer is shown muted, without citations. **New chat** starts a fresh conversation; **Stop** cancels an answer.
 - **Source panel** (right side, or a bottom sheet on phones): click a citation to see the exact passage, its file, part number and match score. `Esc` closes it.
 
 Scanned PDFs (images of text) can't be read; run them through OCR first.
@@ -215,7 +215,7 @@ flowchart LR
 ```
 
 1. **Small talk** ("hi", "thanks", "bye") gets an instant, fixed reply that names your documents, without calling the model.
-2. **Follow-ups:** with earlier exchanges in the conversation, the model first rewrites the new message as a standalone question (e.g. "are you sure it's the most important one?" → "Is the obligation to report concerns the most important part of the Policy Workplace Concerns document?"), so search finds the right passages. The last 3 exchanges are also given to the model.
+2. **Follow-ups:** with earlier exchanges in the conversation, the model first rewrites the new message as a standalone question (e.g. "are you sure it's the most important one?" → "Is the obligation to report concerns the most important part of the Policy Workplace Concerns document?"), so search finds the right passages. The conversation is also given to the model: the newest exchanges that fit in `app.chat.history-chars` (about 10 typical exchanges), so long chats stay within the model's context window.
 3. **Answering:** the model gets the passages tagged with their document title and is told to answer only from them, cite each statement as `[1]`, `[2]`, and refer to documents by title. If the passages are related but don't answer exactly, it says what the documents do say. If nothing relevant was found, it replies "I couldn't find that in" followed by the document titles, and never answers from outside knowledge.
 
 ## API
@@ -244,7 +244,7 @@ Errors are returned as [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) proble
 
 ### Chat stream
 
-`POST /api/chat` takes a question, plus optionally `topK` (1–10) and the earlier exchanges, oldest first (up to 20; the server uses the last `app.chat.history-turns`):
+`POST /api/chat` takes a question, plus optionally `topK` (1–10) and the earlier exchanges, oldest first (up to 20; the server uses the newest ones that fit in `app.chat.history-chars`):
 
 ```json
 {
@@ -286,7 +286,7 @@ Settings live in [`backend/src/main/resources/application.yml`](backend/src/main
 | `spring.ai.ollama.embedding.model` | `nomic-embed-text` | Model that turns text into vectors. See the note below before changing it. |
 | `app.chat.top-k` | `5` | How many chunks the model gets as sources |
 | `app.chat.similarity-threshold` | `0.45` | Below this similarity, a chunk isn't used as a source |
-| `app.chat.history-turns` | `3` | How many earlier exchanges are used to understand follow-up questions (0 turns follow-ups off) |
+| `app.chat.history-chars` | `12000` | How much of the conversation (characters of earlier questions and answers) the model sees for follow-ups; the newest exchanges that fit are used (0 turns follow-ups off). Raise it together with `spring.ai.ollama.chat.num-ctx` (8192) for a model with a larger context window. |
 | `app.summaries.enabled` | `true` | Write a whole-document summary after each upload (takes the model 10–40 s per document, in the background) |
 | `app.summaries.section-chars` | `12000` | Text summarized per model call; longer documents are summarized in parts first |
 | `app.ingestion.chunk-size` | `400` | Maximum chunk size in tokens |
@@ -296,6 +296,8 @@ Settings live in [`backend/src/main/resources/application.yml`](backend/src/main
 | `OLLAMA_BASE_URL` (compose) | `http://host.docker.internal:11434` | Where the backend finds Ollama |
 
 Chunking settings only affect new uploads; re-upload existing documents to re-chunk them.
+
+**A larger chat model.** `llama3.2` (3B) is the default because it starts answering in 2–4 seconds on a 16 GB laptop, but it sometimes skips citations or backs down when asked "are you sure?". On a replayed 8-question conversation, `granite4.1:8b` cited every answerable turn and held its ground, but took about 12 seconds to start answering on a 16 GB Mac. With 24 GB of memory or more, it's worth trying: `ollama pull granite4.1:8b`, then set `SPRING_AI_OLLAMA_CHAT_MODEL=granite4.1:8b` for the `backend` service. (`llama3.1:8b` did worse than `llama3.2` in the same test.)
 
 **Changing the embedding model** also changes the vector size. Update `spring.ai.vectorstore.pgvector.dimensions` and the `vector(768)` column (in a new Flyway migration), then re-upload your documents.
 

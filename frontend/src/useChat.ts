@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { streamChat, type Citation, type HistoryTurn } from './api'
 
-/** How many earlier exchanges to send; the server decides how many it actually uses (app.chat.history-turns). */
-const MAX_HISTORY = 10
+/** How many earlier exchanges to send (the API's maximum); the server keeps the newest that fit app.chat.history-chars. */
+const MAX_HISTORY = 20
 
 export interface UserTurn {
   id: number
