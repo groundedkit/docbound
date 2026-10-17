@@ -96,6 +96,8 @@ Install with the official script, which also sets Ollama up as a system service:
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
+On a machine with an NVIDIA GPU, the script also installs NVIDIA's driver and asks you to reboot. Ollama works (on the CPU) until you do.
+
 By default Ollama only listens on `127.0.0.1`, which containers can't reach. Allow connections from Docker containers:
 
 ```bash
@@ -113,7 +115,13 @@ Environment="OLLAMA_HOST=0.0.0.0"
 sudo systemctl restart ollama
 ```
 
-`0.0.0.0` means every network interface. On a machine reachable from other networks, block port 11434 from outside with your firewall, or [run Ollama in Docker](#run-ollama-in-docker-instead) instead.
+If a firewall is active (on Ubuntu, `sudo ufw status` says `Status: active`), it also blocks containers from reaching Ollama. Allow Docker's networks, and only them, to connect to port 11434:
+
+```bash
+sudo ufw allow from 172.16.0.0/12 to any port 11434
+```
+
+`0.0.0.0` means every network interface. Without a firewall, other machines on your network can reach Ollama too; if that's a concern, enable one (`sudo ufw enable`, after `sudo ufw allow ssh` on a remote server) and add the rule above, or [run Ollama in Docker](#run-ollama-in-docker-instead) instead.
 </details>
 
 Check that Ollama is running. On every system this should print a table, not "could not connect":
@@ -141,7 +149,16 @@ cd docbound
 docker compose up --build
 ```
 
-The first build takes a minute or two. When the log shows `Started DocboundApplication`, open **http://localhost:3000**, upload a document, and ask a question.
+The first build takes a minute or two. When the log shows `Started DocboundApplication`, open **http://localhost:3000**, upload a document, and ask a question. On a server, use its address instead of `localhost`, e.g. `http://192.168.1.20:3000`.
+
+If the build stops with `Bind for 0.0.0.0:3000 failed: port is already allocated`, another program uses port 3000. Pick a free port instead (here 3002):
+
+```bash
+DOCBOUND_PORT=3002 docker compose up --build    # macOS, Linux
+$env:DOCBOUND_PORT=3002; docker compose up --build    # Windows PowerShell
+```
+
+and open http://localhost:3002. `DOCBOUND_API_PORT` (8080) and `DOCBOUND_DB_PORT` (5432) work the same way. To keep the setting, put `DOCBOUND_PORT=3002` in a file named `.env` next to `docker-compose.yml`.
 
 ### Everyday commands
 
@@ -389,11 +406,10 @@ MRR (mean reciprocal rank) scores how high the right chunk ranks, from 0 to 1. W
 docker compose logs backend
 ```
 
-- **`Couldn't connect to Ollama at …`**: Ollama isn't running, or on Linux isn't reachable from containers. Start it ([step 2](#2-install-and-start-ollama)), and on Linux check the `OLLAMA_HOST` setting. The backend retries by itself and the page recovers within a few seconds.
+- **`Couldn't connect to Ollama at …`**: Ollama isn't running, or on Linux isn't reachable from containers. The message says what to do: `Connection refused` means Ollama isn't running or (on Linux) only listens on `127.0.0.1`, so check `OLLAMA_HOST`; `timed out` means a firewall is blocking it (see the `ufw` rule in [step 2](#2-install-and-start-ollama)). The backend retries by itself and the page recovers within a few seconds.
 - **No `Started DocboundApplication` line yet**: the backend is still downloading models you haven't pulled. Wait, or stop it and run [step 3](#3-download-the-models) to see progress.
-- **`Port 8080 was already in use`** (or 5432, 3000): another program uses that port, often a local PostgreSQL on 5432. Stop it, or change the left-hand number of that port in `docker-compose.yml`, e.g. `"5433:5432"`.
 
-**Linux: Ollama runs but the backend can't connect.** Besides `OLLAMA_HOST`, a firewall such as `ufw` may block containers. Allow Docker's networks to reach port 11434: `sudo ufw allow from 172.16.0.0/12 to any port 11434`.
+**`Bind for 0.0.0.0:3000 failed: port is already allocated`** (or 8080, 5432) when starting: another program uses that port, often a local PostgreSQL on 5432. Stop it, or choose other ports with `DOCBOUND_PORT` (UI, 3000), `DOCBOUND_API_PORT` (8080) and `DOCBOUND_DB_PORT` (5432), e.g. `DOCBOUND_DB_PORT=5433 docker compose up --build`. See [step 4](#4-get-the-code-and-start-docbound).
 
 **Windows: the build fails with `/bin/sh^M` or `mvnw: not found`.** The repository forces Unix line endings for `mvnw`, but if your copy came from a tool that converted them, re-clone with Git, or run `git config core.autocrlf input` and check the file out again.
 

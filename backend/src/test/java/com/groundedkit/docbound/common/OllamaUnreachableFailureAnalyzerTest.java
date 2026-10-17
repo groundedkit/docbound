@@ -1,6 +1,7 @@
 package com.groundedkit.docbound.common;
 
 import java.net.ConnectException;
+import java.net.http.HttpConnectTimeoutException;
 
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +38,19 @@ class OllamaUnreachableFailureAnalyzerTest {
 		FailureAnalysis analysis = analyzer.analyze(startupFailure(connectionRefused("org.springframework.ai.ollama.api.OllamaApi")));
 
 		assertThat(analysis.getAction()).doesNotContain("OLLAMA_HOST");
+	}
+
+	@Test
+	void pointsToTheFirewallWhenTheConnectionTimesOut() {
+		var timeout = new ResourceAccessException("I/O error on GET request",
+				new HttpConnectTimeoutException("connection timed out after 30000 ms"));
+		timeout.setStackTrace(new StackTraceElement[] { new StackTraceElement("org.springframework.ai.ollama.api.OllamaApi", "listModels", null, 1) });
+
+		FailureAnalysis analysis = analyzer.analyze(startupFailure(timeout));
+
+		assertThat(analysis.getDescription()).contains("timed out");
+		assertThat(analysis.getAction()).contains("firewall").contains("sudo ufw allow from 172.16.0.0/12 to any port 11434")
+			.doesNotContain("ollama serve");
 	}
 
 	@Test
