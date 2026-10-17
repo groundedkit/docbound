@@ -41,6 +41,8 @@
 
 You don't need Java or Node.js to run Docbound: everything builds inside Docker. They're only needed for [development](#development).
 
+**How fast is it?** It depends almost entirely on where Ollama runs. On an Apple Silicon Mac or a PC with a supported GPU, answers start in 2–5 seconds. On the CPU alone, expect a minute or more per answer: on a 2016 dual-core laptop (Intel i5-7200U) a cited answer took about 90 seconds. On CPU-only machines, also turn off [document summaries](#configuration): writing one takes several minutes there, and questions wait until it's done. Start with `APP_SUMMARIES_ENABLED=false docker compose up --build`, or put `APP_SUMMARIES_ENABLED=false` in a `.env` file next to `docker-compose.yml`.
+
 ### 1. Install Docker
 
 <details open>
@@ -413,7 +415,7 @@ docker compose logs backend
 
 **Windows: the build fails with `/bin/sh^M` or `mvnw: not found`.** The repository forces Unix line endings for `mvnw`, but if your copy came from a tool that converted them, re-clone with Git, or run `git config core.autocrlf input` and check the file out again.
 
-**Answers are slow.** The first question after a while takes a few extra seconds while Ollama loads the model into memory. If every answer is slow, check that you're using native Ollama rather than the CPU-only container, and that your machine has enough free memory.
+**Answers are slow, or stop with only the sources shown.** The first question after a while takes a few extra seconds while Ollama loads the model into memory. If every answer is slow, check that you're using native Ollama rather than the CPU-only container, and that your machine has enough free memory (`ollama ps` shows whether the model runs on the GPU or the CPU). On CPU-only machines, set `APP_SUMMARIES_ENABLED=false` (in `.env` or before `docker compose up`): right after an upload, the document summary keeps Ollama busy for minutes, and a question asked meanwhile can time out. On Linux with a small or old GPU, Ollama may split the model between GPU and CPU and end up slower than the CPU alone; compare by hiding the GPU (add `Environment="CUDA_VISIBLE_DEVICES=-1"` and `Environment="GGML_VK_VISIBLE_DEVICES=-1"` to the `systemctl edit ollama` override from step 2).
 
 **"I couldn't find that in your documents" for something that is in them.** Check what search returns with `curl "localhost:8080/api/search?q=your+question"`. If the right passage isn't there, try rephrasing with words from the document. Documents uploaded before a chunking setting changed keep their old chunks until you upload them again.
 

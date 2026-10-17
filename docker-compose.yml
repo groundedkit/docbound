@@ -36,6 +36,8 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/docbound
       SPRING_AI_OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # false on CPU-only machines: a summary keeps Ollama busy for minutes after each upload there.
+      APP_SUMMARIES_ENABLED: ${APP_SUMMARIES_ENABLED:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"  # needed on Linux; Docker Desktop provides it already
     depends_on:
